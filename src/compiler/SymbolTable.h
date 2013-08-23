@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2002-2010 The ANGLE Project Authors. All rights reserved.
+// Copyright (c) 2002-2013 The ANGLE Project Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
@@ -41,9 +41,10 @@
 //
 class TSymbol {    
 public:
-    POOL_ALLOCATOR_NEW_DELETE(GlobalPoolAllocator)
-    TSymbol(const TString *n) :  name(n) { }
+    POOL_ALLOCATOR_NEW_DELETE();
+    TSymbol(const TString* n) :  uniqueId(0), name(n) { }
     virtual ~TSymbol() { /* don't delete name, it's from the pool */ }
+
     const TString& getName() const { return *name; }
     virtual const TString& getMangledName() const { return getName(); }
     virtual bool isFunction() const { return false; }
@@ -57,8 +58,8 @@ public:
 private:
     DISALLOW_COPY_AND_ASSIGN(TSymbol);
 
+    int uniqueId;      // For real comparing during code generation
     const TString *name;
-    unsigned int uniqueId;      // For real comparing during code generation
     TString extension;
 };
 
@@ -186,19 +187,22 @@ public:
     typedef const tLevel::value_type tLevelPair;
     typedef std::pair<tLevel::iterator, bool> tInsertResult;
 
-    POOL_ALLOCATOR_NEW_DELETE(GlobalPoolAllocator)
     TSymbolTableLevel() { }
     ~TSymbolTableLevel();
 
-    bool insert(TSymbol& symbol) 
+    bool insert(const TString &name, TSymbol &symbol)
     {
         //
         // returning true means symbol was added to the table
         //
-        tInsertResult result;
-        result = level.insert(tLevelPair(symbol.getMangledName(), &symbol));
+        tInsertResult result = level.insert(tLevelPair(name, &symbol));
 
         return result.second;
+    }
+
+    bool insert(TSymbol &symbol)
+    {
+        return insert(symbol.getMangledName(), symbol);
     }
 
     TSymbol* find(const TString& name) const
@@ -238,13 +242,7 @@ public:
         // that the symbol table has not been preloaded with built-ins.
         //
     }
-
-    ~TSymbolTable()
-    {
-        // level 0 is always built In symbols, so we never pop that out
-        while (table.size() > 1)
-            pop();
-    }
+    ~TSymbolTable();
 
     //
     // When the symbol table is initialized with the built-ins, there should
@@ -257,13 +255,15 @@ public:
     void push()
     {
         table.push_back(new TSymbolTableLevel);
-        precisionStack.push_back( PrecisionStackLevel() );
+        precisionStack.push_back(new PrecisionStackLevel);
     }
 
     void pop()
-    { 
-        delete table[currentLevel()]; 
-        table.pop_back(); 
+    {
+        delete table.back();
+        table.pop_back();
+
+        delete precisionStack.back();
         precisionStack.pop_back();
     }
 
@@ -271,6 +271,35 @@ public:
     {
         symbol.setUniqueId(++uniqueId);
         return table[currentLevel()]->insert(symbol);
+    }
+
+    bool insertConstInt(const char *name, int value)
+    {
+        TVariable *constant = new TVariable(NewPoolTString(name), TType(EbtInt, EbpUndefined, EvqConst, 1));
+        constant->getConstPointer()->setIConst(value);
+        return insert(*constant);
+    }
+
+    bool insertBuiltIn(TType *rvalue, const char *name, TType *ptype1, TType *ptype2 = 0, TType *ptype3 = 0)
+    {
+        TFunction *function = new TFunction(NewPoolTString(name), *rvalue);
+
+        TParameter param1 = {NULL, ptype1};
+        function->addParameter(param1);
+
+        if(ptype2)
+        {
+            TParameter param2 = {NULL, ptype2};
+            function->addParameter(param2);
+        }
+
+        if(ptype3)
+        {
+            TParameter param3 = {NULL, ptype3};
+            function->addParameter(param3);
+        }
+
+        return insert(*function);
     }
 
     TSymbol* find(const TString& name, bool* builtIn = 0, bool *sameScope = 0) 
@@ -289,14 +318,9 @@ public:
         return symbol;
     }
 
-    TSymbol *findBuiltIn(const TString &name)
+    TSymbol* findBuiltIn(const TString &name)
     {
         return table[0]->find(name);
-    }
-
-    TSymbolTableLevel* getGlobalLevel() {
-        assert(table.size() >= 2);
-        return table[1];
     }
 
     TSymbolTableLevel* getOuterLevel() {
@@ -310,31 +334,29 @@ public:
     void relateToExtension(const char* name, const TString& ext) {
         table[0]->relateToExtension(name, ext);
     }
-    int getMaxSymbolId() { return uniqueId; }
     void dump(TInfoSink &infoSink) const;
 
-    bool setDefaultPrecision( const TPublicType& type, TPrecision prec ){
-        if (IsSampler(type.type))
-            return true;  // Skip sampler types for the time being
-        if (type.type != EbtFloat && type.type != EbtInt)
-            return false; // Only set default precision for int/float
+    bool setDefaultPrecision(const TPublicType& type, TPrecision prec) {
+        if (!supportsPrecision(type.type))
+            return false;
         if (type.size != 1 || type.matrix || type.array)
             return false; // Not allowed to set for aggregate types
         int indexOfLastElement = static_cast<int>(precisionStack.size()) - 1;
-        precisionStack[indexOfLastElement][type.type] = prec; // Uses map operator [], overwrites the current value
+        (*precisionStack[indexOfLastElement])[type.type] = prec; // Uses map operator [], overwrites the current value
         return true;
     }
 
     // Searches down the precisionStack for a precision qualifier for the specified TBasicType
-    TPrecision getDefaultPrecision( TBasicType type){
-        if( type != EbtFloat && type != EbtInt ) return EbpUndefined;
+    TPrecision getDefaultPrecision(TBasicType type) {
+        if (!supportsPrecision(type))
+            return EbpUndefined;
         int level = static_cast<int>(precisionStack.size()) - 1;
-        assert( level >= 0); // Just to be safe. Should not happen.
+        assert(level >= 0); // Just to be safe. Should not happen.
         PrecisionStackLevel::iterator it;
         TPrecision prec = EbpUndefined; // If we dont find anything we return this. Should we error check this?
-        while( level >= 0 ){
-            it = precisionStack[level].find( type );
-            if( it != precisionStack[level].end() ){
+        while (level >= 0) {
+            it = precisionStack[level]->find(type);
+            if (it != precisionStack[level]->end()) {
                 prec = (*it).second;
                 break;
             }
@@ -343,13 +365,18 @@ public:
         return prec;
     }
 
-protected:    
+private:
     int currentLevel() const { return static_cast<int>(table.size()) - 1; }
 
-    std::vector<TSymbolTableLevel*> table;
-    typedef std::map< TBasicType, TPrecision > PrecisionStackLevel;
-    std::vector< PrecisionStackLevel > precisionStack;
+    bool supportsPrecision(TBasicType type) {
+      // Only supports precision for int, float, and sampler types.
+      return type == EbtFloat || type == EbtInt || IsSampler(type);
+    }
+
     int uniqueId;     // for unique identification in code generation
+    std::vector<TSymbolTableLevel*> table;
+    typedef TMap<TBasicType, TPrecision> PrecisionStackLevel;
+    std::vector<PrecisionStackLevel*> precisionStack;
 };
 
 #endif // _SYMBOL_TABLE_INCLUDED_
