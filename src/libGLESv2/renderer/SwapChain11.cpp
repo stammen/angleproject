@@ -11,13 +11,26 @@
 
 #include "libGLESv2/renderer/renderer11_utils.h"
 #include "libGLESv2/renderer/Renderer11.h"
+#if defined(ANGLE_PLATFORM_WINRT)
+#include "libGLESv2/renderer/shaders/compiled/winrt/passthrough11vs.h"
+#include "libGLESv2/renderer/shaders/compiled/winrt/passthroughrgba11ps.h"
+#include <windows.ui.xaml.media.dxinterop.h>
+using namespace Windows::UI::Xaml::Controls;
+using namespace Microsoft::WRL;
+using namespace Windows::UI::Core;
+using namespace Windows::Foundation;
+using namespace Windows::Graphics::Display;
+#else
 #include "libGLESv2/renderer/shaders/compiled/passthrough11vs.h"
 #include "libGLESv2/renderer/shaders/compiled/passthroughrgba11ps.h"
+#endif // ANGLE_PLATFORM_WINRT
+
+
 
 namespace rx
 {
 
-SwapChain11::SwapChain11(Renderer11 *renderer, HWND window, HANDLE shareHandle,
+SwapChain11::SwapChain11(Renderer11 *renderer, EGLNativeWindowType window, HANDLE shareHandle,
                          GLenum backBufferFormat, GLenum depthBufferFormat)
     : mRenderer(renderer), SwapChain(window, shareHandle, backBufferFormat, depthBufferFormat)
 {
@@ -227,7 +240,7 @@ EGLint SwapChain11::resetOffscreenTexture(int backbufferWidth, int backbufferHei
     }
     else
     {
-        const bool useSharedResource = !mWindow && mRenderer->getShareHandleSupport();
+        const bool useSharedResource = !getWindowHandle() && mRenderer->getShareHandleSupport();
 
         D3D11_TEXTURE2D_DESC offscreenTextureDesc = {0};
         offscreenTextureDesc.Width = backbufferWidth;
@@ -386,7 +399,9 @@ EGLint SwapChain11::resize(EGLint backbufferWidth, EGLint backbufferHeight)
 
     // Resize swap chain
     DXGI_FORMAT backbufferDXGIFormat = gl_d3d11::ConvertRenderbufferFormat(mBackBufferFormat);
-    HRESULT result = mSwapChain->ResizeBuffers(2, backbufferWidth, backbufferHeight, backbufferDXGIFormat, 0);
+    HRESULT result = S_OK;
+
+    result = mSwapChain->ResizeBuffers(2, backbufferWidth, backbufferHeight, backbufferDXGIFormat, 0);
 
     if (FAILED(result))
     {
@@ -423,6 +438,7 @@ EGLint SwapChain11::resize(EGLint backbufferWidth, EGLint backbufferHeight)
 EGLint SwapChain11::reset(int backbufferWidth, int backbufferHeight, EGLint swapInterval)
 {
     ID3D11Device *device = mRenderer->getDevice();
+    HRESULT result = S_OK;
 
     if (device == NULL)
     {
@@ -463,9 +479,11 @@ EGLint SwapChain11::reset(int backbufferWidth, int backbufferHeight, EGLint swap
         return EGL_SUCCESS;
     }
 
-    if (mWindow)
+    if (getWindowHandle())
     {
-        // We cannot create a swap chain for an HWND that is owned by a different process
+#if !defined(ANGLE_PLATFORM_WINRT)
+        // We cannot create a swap #if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_APP)
+        // for an HWND that is owned by a different process
         DWORD currentProcessId = GetCurrentProcessId();
         DWORD wndProcessId;
         GetWindowThreadProcessId(mWindow, &wndProcessId);
@@ -476,9 +494,10 @@ EGLint SwapChain11::reset(int backbufferWidth, int backbufferHeight, EGLint swap
             release();
             return EGL_BAD_NATIVE_WINDOW;
         }
+#endif // ANGLE_PLATFORM_WINRT
 
+#if !defined(ANGLE_PLATFORM_WINRT)
         IDXGIFactory *factory = mRenderer->getDxgiFactory();
-
         DXGI_SWAP_CHAIN_DESC swapChainDesc = {0};
         swapChainDesc.BufferCount = 2;
         swapChainDesc.BufferDesc.Format = gl_d3d11::ConvertRenderbufferFormat(mBackBufferFormat);
@@ -494,8 +513,36 @@ EGLint SwapChain11::reset(int backbufferWidth, int backbufferHeight, EGLint swap
         swapChainDesc.SampleDesc.Count = 1;
         swapChainDesc.SampleDesc.Quality = 0;
         swapChainDesc.Windowed = TRUE;
+        result = factory->CreateSwapChain(device, &swapChainDesc, &mSwapChain);
 
-        HRESULT result = factory->CreateSwapChain(device, &swapChainDesc, &mSwapChain);
+#elif defined(ANGLE_PLATFORM_WINRT)
+        IDXGIFactory2 *factory = mRenderer->getDxgiFactory();
+        DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {0};
+        swapChainDesc.Width = backbufferWidth;
+        swapChainDesc.Height = backbufferHeight;
+        swapChainDesc.Format = gl_d3d11::ConvertRenderbufferFormat(mBackBufferFormat);
+        swapChainDesc.Stereo = FALSE;
+        swapChainDesc.SampleDesc.Count = 1;
+        swapChainDesc.SampleDesc.Quality = 0;
+        swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+        swapChainDesc.BufferCount = 2;
+        swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL; //must be used for winrt
+        swapChainDesc.Scaling = mWindow.panel ? DXGI_SCALING_STRETCH : DXGI_SCALING_NONE;
+        if (mWindow.panel)
+        {
+            result = factory->CreateSwapChainForComposition(device, &swapChainDesc, nullptr, &mSwapChain);
+            if SUCCEEDED(result)
+            {
+                ComPtr<ISwapChainBackgroundPanelNative> panelNative;
+                reinterpret_cast<IUnknown*>(mWindow.panel)->QueryInterface(IID_PPV_ARGS(&panelNative));
+                panelNative->SetSwapChain(mSwapChain);
+            }
+        }
+        else
+        {
+            result = factory->CreateSwapChainForCoreWindow(device, reinterpret_cast<IUnknown*>(const_cast<CoreWindow^>(mWindow.window.Get())), &swapChainDesc, nullptr, &mSwapChain);
+        }
+#endif // ANGLE_PLATFORM_WINRT
 
         if (FAILED(result))
         {
@@ -566,7 +613,10 @@ void SwapChain11::initPassThroughResources()
     samplerDesc.BorderColor[2] = 0.0f;
     samplerDesc.BorderColor[3] = 0.0f;
     samplerDesc.MinLOD = 0;
-    samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+    if (device->GetFeatureLevel() <= D3D_FEATURE_LEVEL_9_3)
+        samplerDesc.MaxLOD = FLT_MAX; //breaks Surface RT if 0.0f
+    else
+        samplerDesc.MaxLOD = 0.0f;
 
     result = device->CreateSamplerState(&samplerDesc, &mPassThroughSampler);
     ASSERT(SUCCEEDED(result));
@@ -644,7 +694,11 @@ EGLint SwapChain11::swapRect(EGLint x, EGLint y, EGLint width, EGLint height)
 
     // Apply shaders
     deviceContext->IASetInputLayout(mPassThroughIL);
-    deviceContext->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+#if defined(ANGLE_PLATFORM_WINRT)
+    deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+#else
+   deviceContext->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+#endif // ANGLE_PLATFORM_WINRT
     deviceContext->VSSetShader(mPassThroughVS, NULL, 0);
     deviceContext->PSSetShader(mPassThroughPS, NULL, 0);
     deviceContext->GSSetShader(NULL, NULL, 0);
@@ -764,5 +818,17 @@ void SwapChain11::recreate()
 {
     // possibly should use this method instead of reset
 }
+
+#if defined(ANGLE_PLATFORM_WINRT)
+CoreWindow ^SwapChain11::getWindowHandle()
+{
+    return mWindow.window.Get();
+}
+#else
+HWND SwapChain11::getWindowHandle()
+{
+    return mWindow;
+}
+#endif // ANGLE_PLATFORM_WINRT
 
 }

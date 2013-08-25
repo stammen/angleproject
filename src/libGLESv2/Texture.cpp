@@ -14,7 +14,9 @@
 #include "libGLESv2/main.h"
 #include "libGLESv2/mathutil.h"
 #include "libGLESv2/utilities.h"
+#if !defined(ANGLE_PLATFORM_WINRT)
 #include "libGLESv2/renderer/Blit.h"
+#endif // ANGLE_PLATFORM_WINRT
 #include "libGLESv2/Renderbuffer.h"
 #include "libGLESv2/renderer/Image.h"
 #include "libGLESv2/renderer/Renderer.h"
@@ -375,7 +377,13 @@ GLenum Texture2D::getActualFormat(GLint level) const
     if (level < IMPLEMENTATION_MAX_TEXTURE_LEVELS)
         return mImageArray[level]->getActualFormat();
     else
+    {
+#if defined(ANGLE_PLATFORM_WINRT)
+        return DXGI_FORMAT_UNKNOWN;
+#else
         return D3DFMT_UNKNOWN;
+#endif // ANGLE_PLATFORM_WINRT
+    }
 }
 
 void Texture2D::redefineImage(GLint level, GLint internalformat, GLsizei width, GLsizei height)
@@ -973,7 +981,13 @@ GLenum TextureCubeMap::getActualFormat(GLenum target, GLint level) const
     if (level < IMPLEMENTATION_MAX_TEXTURE_LEVELS)
         return mImageArray[faceIndex(target)][level]->getActualFormat();
     else
+    {
+#if defined(ANGLE_PLATFORM_WINRT)
+        return DXGI_FORMAT_UNKNOWN;
+#else
         return D3DFMT_UNKNOWN;
+#endif // ANGLE_PLATFORM_WINRT
+    }
 }
 
 void TextureCubeMap::setImagePosX(GLint level, GLsizei width, GLsizei height, GLenum format, GLenum type, GLint unpackAlignment, const void *pixels)

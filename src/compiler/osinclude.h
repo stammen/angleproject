@@ -28,6 +28,10 @@
 #define STRICT
 #define VC_EXTRALEAN 1
 #include <windows.h>
+
+#if defined(ANGLE_PLATFORM_WINRT)
+#include "common/winrt/ThreadEmulation.h"
+#endif  // #if defined(ANGLE_PLATFORM_WINRT)
 #elif defined(ANGLE_OS_POSIX)
 #include <pthread.h>
 #include <semaphore.h>
@@ -56,7 +60,11 @@ inline void* OS_GetTLSValue(OS_TLSIndex nIndex)
 {
     ASSERT(nIndex != OS_INVALID_TLS_INDEX);
 #if defined(ANGLE_OS_WIN)
+#if defined(ANGLE_PLATFORM_WINRT)
+    return ThreadEmulation::TlsGetValue(nIndex);
+#else
     return TlsGetValue(nIndex);
+#endif // ANGLE_PLATFORM_WINRT
 #elif defined(ANGLE_OS_POSIX)
     return pthread_getspecific(nIndex);
 #endif  // ANGLE_OS_WIN

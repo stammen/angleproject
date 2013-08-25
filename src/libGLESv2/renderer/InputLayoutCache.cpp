@@ -206,7 +206,6 @@ bool InputLayoutCache::compareInputLayouts(const InputLayoutKey &a, const InputL
     {
         return false;
     }
-
     return std::equal(a.begin(), a.end(), b.begin());
 }
 

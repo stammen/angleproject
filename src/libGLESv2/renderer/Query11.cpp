@@ -11,6 +11,11 @@
 #include "libGLESv2/renderer/Renderer11.h"
 #include "libGLESv2/main.h"
 
+#if defined(ANGLE_PLATFORM_WINRT)
+#include "common/winrt/ThreadEmulation.h"
+using namespace ThreadEmulation;
+#endif // ANGLE_PLATFORM_WINRT
+
 namespace rx
 {
 

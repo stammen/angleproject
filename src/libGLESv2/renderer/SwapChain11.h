@@ -19,8 +19,9 @@ class Renderer11;
 class SwapChain11 : public SwapChain
 {
   public:
-    SwapChain11(Renderer11 *renderer, HWND window, HANDLE shareHandle,
-                GLenum backBufferFormat, GLenum depthBufferFormat);
+    SwapChain11(Renderer11 *renderer, EGLNativeWindowType window, HANDLE shareHandle,
+    GLenum backBufferFormat, GLenum depthBufferFormat);
+
     virtual ~SwapChain11();
 
     EGLint resize(EGLint backbufferWidth, EGLint backbufferHeight);
@@ -47,6 +48,11 @@ class SwapChain11 : public SwapChain
     void initPassThroughResources();
     void releaseOffscreenTexture();
     EGLint resetOffscreenTexture(int backbufferWidth, int backbufferHeight);
+#if defined(ANGLE_PLATFORM_WINRT)
+    Windows::UI::Core::CoreWindow ^getWindowHandle();
+#else
+    HWND getWindowHandle();
+#endif // ANGLE_PLATFORM_WINRT
 
     Renderer11 *mRenderer;
     EGLint mHeight;
@@ -55,7 +61,11 @@ class SwapChain11 : public SwapChain
     unsigned int mSwapInterval;
     bool mPassThroughResourcesInit;
 
+#if defined(ANGLE_PLATFORM_WINRT)
+    IDXGISwapChain1 *mSwapChain;
+#else
     IDXGISwapChain *mSwapChain;
+#endif // ANGLE_PLATFORM_WINRT
 
     ID3D11Texture2D *mBackBufferTexture;
     ID3D11RenderTargetView *mBackBufferRTView;

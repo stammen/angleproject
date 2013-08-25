@@ -248,11 +248,10 @@ void ShGetVariableInfo(const ShHandle handle,
                        int* size,
                        ShDataType* type,
                        ShPrecisionType* precision,
-                       int* staticUse,
                        char* name,
                        char* mappedName)
 {
-    if (!handle || !size || !type || !precision || !staticUse || !name)
+    if (!handle || !size || !type || !name)
         return;
     ASSERT((varType == SH_ACTIVE_ATTRIBUTES) ||
            (varType == SH_ACTIVE_UNIFORMS) ||
@@ -285,11 +284,8 @@ void ShGetVariableInfo(const ShHandle handle,
         *precision = SH_PRECISION_HIGHP;
         break;
     default:
-        // Some types does not support precision, for example, boolean.
-        *precision = SH_PRECISION_UNDEFINED;
-        break;
+        ASSERT(false);
     }
-    *staticUse = varInfo.staticUse ? 1 : 0;
 
     // This size must match that queried by
     // SH_ACTIVE_UNIFORM_MAX_LENGTH, SH_ACTIVE_ATTRIBUTE_MAX_LENGTH, SH_VARYING_MAX_LENGTH

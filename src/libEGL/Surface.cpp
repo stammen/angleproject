@@ -19,11 +19,16 @@
 
 #include "libEGL/main.h"
 #include "libEGL/Display.h"
+#if defined(ANGLE_PLATFORM_WINRT)
+#include <wrl/client.h>
+using namespace Windows::UI::Core;
+#endif // ANGLE_PLATFORM_WINRT
+
 
 namespace egl
 {
 
-Surface::Surface(Display *display, const Config *config, HWND window, EGLint postSubBufferSupported) 
+Surface::Surface(Display *display, const Config *config, EGLNativeWindowType window, EGLint postSubBufferSupported) 
     : mDisplay(display), mConfig(config), mWindow(window), mPostSubBufferSupported(postSubBufferSupported)
 {
     mRenderer = mDisplay->getRenderer();
@@ -45,8 +50,14 @@ Surface::Surface(Display *display, const Config *config, HWND window, EGLint pos
 }
 
 Surface::Surface(Display *display, const Config *config, HANDLE shareHandle, EGLint width, EGLint height, EGLenum textureFormat, EGLenum textureType)
-    : mDisplay(display), mWindow(NULL), mConfig(config), mShareHandle(shareHandle), mWidth(width), mHeight(height), mPostSubBufferSupported(EGL_FALSE)
+    : mDisplay(display), mConfig(config), mShareHandle(shareHandle), mWidth(width), mHeight(height), mPostSubBufferSupported(EGL_FALSE)
 {
+#if defined(ANGLE_PLATFORM_WINRT)
+    mWindow.window = nullptr;
+    mWindow.panel = nullptr;
+#else
+    mWindow = NULL;
+#endif // ANGLE_PLATFORM_WINRT
     mRenderer = mDisplay->getRenderer();
     mSwapChain = NULL;
     mWindowSubclassed = false;
@@ -94,8 +105,13 @@ bool Surface::resetSwapChain()
     int width;
     int height;
 
-    if (mWindow)
+    if (getWindowHandle())
     {
+#if defined(ANGLE_PLATFORM_WINRT)
+        CoreWindow ^window = getWindowHandle();
+        width = static_cast<int>(convertDipsToPixels(window->Bounds.Width));
+        height = static_cast<int>(convertDipsToPixels(window->Bounds.Height));
+#else
         RECT windowRect;
         if (!GetClientRect(getWindowHandle(), &windowRect))
         {
@@ -107,6 +123,7 @@ bool Surface::resetSwapChain()
 
         width = windowRect.right - windowRect.left;
         height = windowRect.bottom - windowRect.top;
+#endif // ANGLE_PLATFORM_WINRT
     }
     else
     {
@@ -219,21 +236,42 @@ bool Surface::swapRect(EGLint x, EGLint y, EGLint width, EGLint height)
     return true;
 }
 
+#if defined(ANGLE_PLATFORM_WINRT)
+
+// Method to convert a length in device-independent pixels (DIPs) to a length in physical pixels.
+float Surface::convertDipsToPixels(float dips)
+{
+   static const float dipsPerInch = 96.0f;
+   return floor(dips * Windows::Graphics::Display::DisplayProperties::LogicalDpi / dipsPerInch + 0.5f); // Round to nearest integer.
+}
+
+void Surface::onWindowSizeChanged()
+{
+    checkForOutOfDateSwapChain();    
+}
+
+CoreWindow ^Surface::getWindowHandle()
+{
+    return mWindow.window.Get();
+}
+#else
 HWND Surface::getWindowHandle()
 {
     return mWindow;
 }
+#endif // ANGLE_PLATFORM_WINRT
 
 
 #define kSurfaceProperty _TEXT("Egl::SurfaceOwner")
 #define kParentWndProc _TEXT("Egl::SurfaceParentWndProc")
 
+#if !defined(ANGLE_PLATFORM_WINRT)
 static LRESULT CALLBACK SurfaceWindowProc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 {
   if (message == WM_SIZE)
   {
       Surface* surf = reinterpret_cast<Surface*>(GetProp(hwnd, kSurfaceProperty));
-      if(surf)
+      if (surf)
       {
           surf->checkForOutOfDateSwapChain();
       }
@@ -241,14 +279,16 @@ static LRESULT CALLBACK SurfaceWindowProc(HWND hwnd, UINT message, WPARAM wparam
   WNDPROC prevWndFunc = reinterpret_cast<WNDPROC >(GetProp(hwnd, kParentWndProc));
   return CallWindowProc(prevWndFunc, hwnd, message, wparam, lparam);
 }
+#endif // ANGLE_PLATFORM_WINRT
 
 void Surface::subclassWindow()
 {
-    if (!mWindow)
+    if (getWindowHandle() == nullptr)
     {
         return;
     }
 
+#if !defined(ANGLE_PLATFORM_WINRT)
     DWORD processId;
     DWORD threadId = GetWindowThreadProcessId(mWindow, &processId);
     if (processId != GetCurrentProcessId() || threadId != GetCurrentThreadId())
@@ -258,7 +298,7 @@ void Surface::subclassWindow()
 
     SetLastError(0);
     LONG_PTR oldWndProc = SetWindowLongPtr(mWindow, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(SurfaceWindowProc));
-    if(oldWndProc == 0 && GetLastError() != ERROR_SUCCESS)
+    if (oldWndProc == 0 && GetLastError() != ERROR_SUCCESS)
     {
         mWindowSubclassed = false;
         return;
@@ -266,15 +306,18 @@ void Surface::subclassWindow()
 
     SetProp(mWindow, kSurfaceProperty, reinterpret_cast<HANDLE>(this));
     SetProp(mWindow, kParentWndProc, reinterpret_cast<HANDLE>(oldWndProc));
+#endif // ANGLE_PLATFORM_WINRT
     mWindowSubclassed = true;
 }
 
 void Surface::unsubclassWindow()
 {
-    if(!mWindowSubclassed)
+    if (!mWindowSubclassed)
     {
         return;
     }
+
+#if !defined(ANGLE_PLATFORM_WINRT)
 
     // un-subclass
     LONG_PTR parentWndFunc = reinterpret_cast<LONG_PTR>(GetProp(mWindow, kParentWndProc));
@@ -284,7 +327,7 @@ void Surface::unsubclassWindow()
     // hwnd as well and did not unsubclass before destroying its EGL context. The
     // application should be modified to either subclass before initializing the
     // EGL context, or to unsubclass before destroying the EGL context.
-    if(parentWndFunc)
+    if (parentWndFunc)
     {
         LONG_PTR prevWndFunc = SetWindowLongPtr(mWindow, GWLP_WNDPROC, parentWndFunc);
         ASSERT(prevWndFunc == reinterpret_cast<LONG_PTR>(SurfaceWindowProc));
@@ -292,11 +335,16 @@ void Surface::unsubclassWindow()
 
     RemoveProp(mWindow, kSurfaceProperty);
     RemoveProp(mWindow, kParentWndProc);
+#endif // ANGLE_PLATFORM_WINRT
     mWindowSubclassed = false;
 }
 
 bool Surface::checkForOutOfDateSwapChain()
 {
+#if defined(ANGLE_PLATFORM_WINRT)
+    int clientWidth = static_cast<int>(convertDipsToPixels(mWindow.window->Bounds.Width));
+    int clientHeight = static_cast<int>(convertDipsToPixels(mWindow.window->Bounds.Height));
+#else
     RECT client;
     if (!GetClientRect(getWindowHandle(), &client))
     {
@@ -307,6 +355,7 @@ bool Surface::checkForOutOfDateSwapChain()
     // Grow the buffer now, if the window has grown. We need to grow now to avoid losing information.
     int clientWidth = client.right - client.left;
     int clientHeight = client.bottom - client.top;
+#endif // ANGLE_PLATFORM_WINRT
     bool sizeDirty = clientWidth != getWidth() || clientHeight != getHeight();
 
     if (mSwapIntervalDirty)

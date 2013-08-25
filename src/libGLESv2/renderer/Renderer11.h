@@ -17,6 +17,10 @@
 #include "libGLESv2/renderer/RenderStateCache.h"
 #include "libGLESv2/renderer/InputLayoutCache.h"
 #include "libGLESv2/renderer/RenderTarget.h"
+#if defined(ANGLE_PLATFORM_WINRT)
+#include <wrl/client.h>
+#include <d3d11_1.h>
+#endif // ANGLE_PLATFORM_WINRT
 
 namespace gl
 {
@@ -52,7 +56,7 @@ class Renderer11 : public Renderer
 
     virtual void sync(bool block);
 
-    virtual SwapChain *createSwapChain(HWND window, HANDLE shareHandle, GLenum backBufferFormat, GLenum depthBufferFormat);
+    virtual SwapChain *createSwapChain(EGLNativeWindowType window, HANDLE shareHandle, GLenum backBufferFormat, GLenum depthBufferFormat);
 
     virtual void setSamplerState(gl::SamplerType type, int index, const gl::SamplerState &sampler);
     virtual void setTexture(gl::SamplerType type, int index, gl::Texture *texture);
@@ -176,7 +180,12 @@ class Renderer11 : public Renderer
     // D3D11-renderer specific methods
     ID3D11Device *getDevice() { return mDevice; }
     ID3D11DeviceContext *getDeviceContext() { return mDeviceContext; };
+#if defined(ANGLE_PLATFORM_WINRT)
+    IDXGIFactory2 *getDxgiFactory() { return mDxgiFactory; };
+#else
     IDXGIFactory *getDxgiFactory() { return mDxgiFactory; };
+#endif // ANGLE_PLATFORM_WINRT
+    D3D_FEATURE_LEVEL getFeatureLevel() const { return mFeatureLevel; }
 
     bool getRenderTargetResource(gl::Renderbuffer *colorbuffer, unsigned int *subresourceIndex, ID3D11Texture2D **resource);
     void unapplyRenderTargets();
@@ -348,8 +357,11 @@ class Renderer11 : public Renderer
     IDXGIAdapter *mDxgiAdapter;
     DXGI_ADAPTER_DESC mAdapterDescription;
     char mDescription[128];
+#if defined(ANGLE_PLATFORM_WINRT)
+    IDXGIFactory2 *mDxgiFactory;
+#else
     IDXGIFactory *mDxgiFactory;
-
+#endif // ANGLE_PLATFORM_WINRT
     // Cached device caps
     bool mBGRATextureSupport;
 };

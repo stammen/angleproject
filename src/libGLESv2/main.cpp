@@ -10,9 +10,16 @@
 #include "libGLESv2/main.h"
 
 #include "libGLESv2/Context.h"
+#if defined(ANGLE_PLATFORM_WINRT)
+#include "common/winrt/threadutils.h"
+using namespace ThreadUtilsWinRT;
+#endif // ANGLE_PLATFORM_WINRT
 
 static DWORD currentTLS = TLS_OUT_OF_INDEXES;
 
+#if defined(ANGLE_PLATFORM_WINRT)
+[Platform::MTAThread]
+#endif // ANGLE_PLATFORM_WINRT
 extern "C" BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
 {
     switch (reason)

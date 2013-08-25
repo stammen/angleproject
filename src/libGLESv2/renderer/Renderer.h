@@ -20,6 +20,7 @@
 const int versionWindowsVista = MAKEWORD(0x00, 0x06);
 const int versionWindows7 = MAKEWORD(0x01, 0x06);
 
+#if !defined(ANGLE_PLATFORM_WINRT)
 // Return the version of the operating system in a format suitable for ordering
 // comparison.
 inline int getComparableOSVersion()
@@ -29,6 +30,7 @@ inline int getComparableOSVersion()
     int minorVersion = HIBYTE(LOWORD(version));
     return MAKEWORD(minorVersion, majorVersion);
 }
+#endif // ANGLE_PLATFORM_WINRT
 
 namespace egl
 {
@@ -107,7 +109,7 @@ class Renderer
 
     virtual void sync(bool block) = 0;
 
-    virtual SwapChain *createSwapChain(HWND window, HANDLE shareHandle, GLenum backBufferFormat, GLenum depthBufferFormat) = 0;
+    virtual SwapChain *createSwapChain(EGLNativeWindowType window, HANDLE shareHandle, GLenum backBufferFormat, GLenum depthBufferFormat) = 0;
 
     virtual void setSamplerState(gl::SamplerType type, int index, const gl::SamplerState &sampler) = 0;
     virtual void setTexture(gl::SamplerType type, int index, gl::Texture *texture) = 0;

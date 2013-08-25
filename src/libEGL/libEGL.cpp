@@ -307,7 +307,10 @@ EGLSurface __stdcall eglCreateWindowSurface(EGLDisplay dpy, EGLConfig config, EG
         {
             return EGL_NO_SURFACE;
         }
-
+        
+#if defined(ANGLE_PLATFORM_WINRT)
+        return display->createWindowSurface(win, config, attrib_list);
+#else
         HWND window = (HWND)win;
 
         if (!IsWindow(window))
@@ -316,6 +319,7 @@ EGLSurface __stdcall eglCreateWindowSurface(EGLDisplay dpy, EGLConfig config, EG
         }
 
         return display->createWindowSurface(window, config, attrib_list);
+#endif // ANGLE_PLATFORM_WINRT
     }
     catch(std::bad_alloc&)
     {
@@ -481,6 +485,13 @@ EGLBoolean __stdcall eglQuerySurface(EGLDisplay dpy, EGLSurface surface, EGLint 
     {
         return egl::error(EGL_BAD_ALLOC, EGL_FALSE);
     }
+}
+
+EGLint __stdcall eglResizeSurface(EGLSurface surface, EGLint width, EGLint height)
+{
+    egl::Surface *surf = static_cast<egl::Surface*>(surface);
+    rx::SwapChain *swapChain = surf->getSwapChain();
+    return swapChain->resize(width, height);
 }
 
 EGLBoolean __stdcall eglQuerySurfacePointerANGLE(EGLDisplay dpy, EGLSurface surface, EGLint attribute, void **value)

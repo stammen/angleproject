@@ -1162,6 +1162,12 @@ bool ProgramBinary::linkVaryings(InfoLog &infoLog, int registers, const Varying 
         return false;
     }
 
+#if defined(ANGLE_PLATFORM_WINRT)
+    bool isWinRT = true;
+#else
+    bool isWinRT = false;
+#endif // ANGLE_PLATFORM_WINRT
+
     bool usesMRT = fragmentShader->mUsesMultipleRenderTargets;
     bool usesFragColor = fragmentShader->mUsesFragColor;
     bool usesFragData = fragmentShader->mUsesFragData;
@@ -1223,9 +1229,9 @@ bool ProgramBinary::linkVaryings(InfoLog &infoLog, int registers, const Varying 
 
     mUsesPointSize = vertexShader->mUsesPointSize;
     std::string varyingSemantic = (mUsesPointSize && shaderModel == 3) ? "COLOR" : "TEXCOORD";
-    std::string targetSemantic = (shaderModel >= 4) ? "SV_Target" : "COLOR";
-    std::string positionSemantic = (shaderModel >= 4) ? "SV_Position" : "POSITION";
-    std::string depthSemantic = (shaderModel >= 4) ? "SV_Depth" : "DEPTH";
+    std::string targetSemantic = (shaderModel >= 4 || isWinRT) ? "SV_Target" : "COLOR";
+    std::string positionSemantic = (shaderModel >= 4 || isWinRT) ? "SV_Position" : "POSITION";
+    std::string depthSemantic = (shaderModel >= 4 || isWinRT) ? "SV_Depth" : "DEPTH";
 
     // special varyings that use reserved registers
     int reservedRegisterIndex = registers;
@@ -1279,7 +1285,7 @@ bool ProgramBinary::linkVaryings(InfoLog &infoLog, int registers, const Varying 
                   "struct VS_OUTPUT\n"
                   "{\n";
 
-    if (shaderModel < 4)
+    if (shaderModel < 4 && !isWinRT)
     {
         vertexHLSL += "    float4 gl_Position : " + positionSemantic + ";\n";
     }
@@ -1301,7 +1307,7 @@ bool ProgramBinary::linkVaryings(InfoLog &infoLog, int registers, const Varying 
         vertexHLSL += "    float gl_PointSize : PSIZE;\n";
     }
 
-    if (shaderModel >= 4)
+    if (shaderModel >= 4 || isWinRT)
     {
         vertexHLSL += "    float4 gl_Position : " + positionSemantic + ";\n";
     }
@@ -1323,7 +1329,7 @@ bool ProgramBinary::linkVaryings(InfoLog &infoLog, int registers, const Varying 
         vertexHLSL += "(input." + decorateAttribute(attribute->name) + ");\n";
     }
 
-    if (shaderModel >= 4)
+    if (shaderModel >= 4 || isWinRT)
     {
         vertexHLSL += "\n"
                       "    gl_main();\n"
@@ -1380,7 +1386,7 @@ bool ProgramBinary::linkVaryings(InfoLog &infoLog, int registers, const Varying 
                         }
                     }
 
-                    if(sharedRegister)
+                    if (sharedRegister)
                     {
                         vertexHLSL += ".";
 
@@ -1460,7 +1466,7 @@ bool ProgramBinary::linkVaryings(InfoLog &infoLog, int registers, const Varying 
 
     if (fragmentShader->mUsesFragCoord)
     {
-        if (shaderModel >= 4)
+        if (shaderModel >= 4 || isWinRT)
         {
             pixelHLSL += "    float4 dx_VPos : SV_Position;\n";
         }
@@ -1490,7 +1496,7 @@ bool ProgramBinary::linkVaryings(InfoLog &infoLog, int registers, const Varying 
 
     if (fragmentShader->mUsesFrontFacing)
     {
-        if (shaderModel >= 4)
+        if (shaderModel >= 4 || isWinRT)
         {
             pixelHLSL += "PS_OUTPUT main(PS_INPUT input, bool isFrontFace : SV_IsFrontFace)\n"
                          "{\n";
@@ -1511,7 +1517,7 @@ bool ProgramBinary::linkVaryings(InfoLog &infoLog, int registers, const Varying 
     {
         pixelHLSL += "    float rhw = 1.0 / input.gl_FragCoord.w;\n";
         
-        if (shaderModel >= 4)
+        if (shaderModel >= 4 || isWinRT)
         {
             pixelHLSL += "    gl_FragCoord.x = input.dx_VPos.x;\n"
                          "    gl_FragCoord.y = input.dx_VPos.y;\n";
@@ -1540,7 +1546,7 @@ bool ProgramBinary::linkVaryings(InfoLog &infoLog, int registers, const Varying 
 
     if (fragmentShader->mUsesFrontFacing)
     {
-        if (shaderModel <= 3)
+        if (shaderModel <= 3 && !isWinRT)
         {
             pixelHLSL += "    gl_FrontFacing = (vFace * dx_DepthFront.z >= 0.0);\n";
         }

@@ -5,6 +5,11 @@
 //
 
 #include "compiler/osinclude.h"
+
+#if defined(ANGLE_PLATFORM_WINRT)
+using namespace ThreadEmulation;
+#endif
+
 //
 // This file contains contains the window's specific functions
 //

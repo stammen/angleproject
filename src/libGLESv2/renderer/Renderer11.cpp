@@ -28,6 +28,18 @@
 #include "libGLESv2/renderer/Query11.h"
 #include "libGLESv2/renderer/Fence11.h"
 
+#if defined(ANGLE_PLATFORM_WINRT)
+#include "libGLESv2/renderer/shaders/compiled/winrt/passthrough11vs.h"
+#include "libGLESv2/renderer/shaders/compiled/winrt/passthroughrgba11ps.h"
+#include "libGLESv2/renderer/shaders/compiled/winrt/passthroughrgb11ps.h"
+#include "libGLESv2/renderer/shaders/compiled/winrt/passthroughlum11ps.h"
+#include "libGLESv2/renderer/shaders/compiled/winrt/passthroughlumalpha11ps.h"
+
+#include "libGLESv2/renderer/shaders/compiled/winrt/clear11vs.h"
+#include "libGLESv2/renderer/shaders/compiled/winrt/clearsingle11ps.h"
+#include "libGLESv2/renderer/shaders/compiled/winrt/clearmultiple11ps.h"
+using namespace Windows::UI::Core;
+#else
 #include "libGLESv2/renderer/shaders/compiled/passthrough11vs.h"
 #include "libGLESv2/renderer/shaders/compiled/passthroughrgba11ps.h"
 #include "libGLESv2/renderer/shaders/compiled/passthroughrgb11ps.h"
@@ -37,6 +49,7 @@
 #include "libGLESv2/renderer/shaders/compiled/clear11vs.h"
 #include "libGLESv2/renderer/shaders/compiled/clearsingle11ps.h"
 #include "libGLESv2/renderer/shaders/compiled/clearmultiple11ps.h"
+#endif // ANGLE_PLATFORM_WINRT
 
 #include "libEGL/Display.h"
 
@@ -137,6 +150,7 @@ EGLint Renderer11::initialize()
         return EGL_NOT_INITIALIZED;
     }
 
+#if !defined(ANGLE_PLATFORM_WINRT)
     mDxgiModule = LoadLibrary(TEXT("dxgi.dll"));
     mD3d11Module = LoadLibrary(TEXT("d3d11.dll"));
 
@@ -155,12 +169,19 @@ EGLint Renderer11::initialize()
         ERR("Could not retrieve D3D11CreateDevice address - aborting!\n");
         return EGL_NOT_INITIALIZED;
     }
+#endif // ANGLE_PLATFORM_WINRT
 
     D3D_FEATURE_LEVEL featureLevels[] =
     {
+#ifdef D3D_FEATURE_LEVEL_11_1
+        D3D_FEATURE_LEVEL_11_1,
+#endif // D3D_FEATURE_LEVEL_11_1
         D3D_FEATURE_LEVEL_11_0,
         D3D_FEATURE_LEVEL_10_1,
         D3D_FEATURE_LEVEL_10_0,
+        D3D_FEATURE_LEVEL_9_3,
+        D3D_FEATURE_LEVEL_9_2,
+        D3D_FEATURE_LEVEL_9_1,
     };
 
     HRESULT result = S_OK;
@@ -226,7 +247,11 @@ EGLint Renderer11::initialize()
     memset(mDescription, 0, sizeof(mDescription));
     wcstombs(mDescription, mAdapterDescription.Description, sizeof(mDescription) - 1);
 
+#if defined(ANGLE_PLATFORM_WINRT)
+    result = mDxgiAdapter->GetParent(__uuidof(IDXGIFactory2), (void**)&mDxgiFactory);
+#else
     result = mDxgiAdapter->GetParent(__uuidof(IDXGIFactory), (void**)&mDxgiFactory);
+#endif // ANGLE_PLATFORM_WINRT
 
     if (!mDxgiFactory || FAILED(result))
     {
@@ -322,6 +347,7 @@ EGLint Renderer11::initialize()
     {
         DXGI_FORMAT_R32_FLOAT,
         DXGI_FORMAT_R32G32_FLOAT,
+        DXGI_FORMAT_R32G32B32_FLOAT,
         DXGI_FORMAT_R32G32B32A32_FLOAT,
     };
 
@@ -509,7 +535,9 @@ void Renderer11::sync(bool block)
             result = mDeviceContext->GetData(mSyncQuery, NULL, 0, D3D11_ASYNC_GETDATA_DONOTFLUSH);
 
             // Keep polling, but allow other threads to do something useful first
+#if !defined(ANGLE_PLATFORM_WINRT)
             Sleep(0);
+#endif // ANGLE_PLATFORM_WINRT
 
             if (testDeviceLost(true))
             {
@@ -524,7 +552,7 @@ void Renderer11::sync(bool block)
     }
 }
 
-SwapChain *Renderer11::createSwapChain(HWND window, HANDLE shareHandle, GLenum backBufferFormat, GLenum depthBufferFormat)
+SwapChain *Renderer11::createSwapChain(EGLNativeWindowType window, HANDLE shareHandle, GLenum backBufferFormat, GLenum depthBufferFormat)
 {
     return new rx::SwapChain11(this, window, shareHandle, backBufferFormat, depthBufferFormat);
 }
@@ -1108,6 +1136,43 @@ void Renderer11::drawElements(GLenum mode, GLsizei count, GLenum type, const GLv
     }
 }
 
+template <typename T>
+void WriteIndexBufferLineLoop(T *data, GLenum type, const GLvoid *indices, GLsizei count)
+{
+    switch (type)
+    {
+      case GL_NONE:   // Non-indexed draw
+        for (int i = 0; i < count; i++)
+        {
+            data[i] = i;
+        }
+        data[count] = 0;
+        break;
+      case GL_UNSIGNED_BYTE:
+        for (int i = 0; i < count; i++)
+        {
+            data[i] = static_cast<const GLubyte*>(indices)[i];
+        }
+        data[count] = static_cast<const GLubyte*>(indices)[0];
+        break;
+      case GL_UNSIGNED_SHORT:
+        for (int i = 0; i < count; i++)
+        {
+            data[i] = static_cast<const GLushort*>(indices)[i];
+        }
+        data[count] = static_cast<const GLushort*>(indices)[0];
+        break;
+      case GL_UNSIGNED_INT:
+        for (int i = 0; i < count; i++)
+        {
+            data[i] = static_cast<const GLuint*>(indices)[i];
+        }
+        data[count] = static_cast<const GLuint*>(indices)[0];
+        break;
+      default: UNREACHABLE();
+    }
+}
+
 void Renderer11::drawLineLoop(GLsizei count, GLenum type, const GLvoid *indices, int minIndex, gl::Buffer *elementArrayBuffer)
 {
     // Get the raw indices for an indexed draw
@@ -1156,41 +1221,12 @@ void Renderer11::drawLineLoop(GLsizei count, GLenum type, const GLvoid *indices,
         return gl::error(GL_OUT_OF_MEMORY);
     }
 
-    unsigned int *data = reinterpret_cast<unsigned int*>(mappedMemory);
     unsigned int indexBufferOffset = offset;
 
-    switch (type)
-    {
-      case GL_NONE:   // Non-indexed draw
-        for (int i = 0; i < count; i++)
-        {
-            data[i] = i;
-        }
-        data[count] = 0;
-        break;
-      case GL_UNSIGNED_BYTE:
-        for (int i = 0; i < count; i++)
-        {
-            data[i] = static_cast<const GLubyte*>(indices)[i];
-        }
-        data[count] = static_cast<const GLubyte*>(indices)[0];
-        break;
-      case GL_UNSIGNED_SHORT:
-        for (int i = 0; i < count; i++)
-        {
-            data[i] = static_cast<const GLushort*>(indices)[i];
-        }
-        data[count] = static_cast<const GLushort*>(indices)[0];
-        break;
-      case GL_UNSIGNED_INT:
-        for (int i = 0; i < count; i++)
-        {
-            data[i] = static_cast<const GLuint*>(indices)[i];
-        }
-        data[count] = static_cast<const GLuint*>(indices)[0];
-        break;
-      default: UNREACHABLE();
-    }
+    if (mFeatureLevel > D3D_FEATURE_LEVEL_9_1)
+        WriteIndexBufferLineLoop(reinterpret_cast<unsigned int*>(mappedMemory), type, indices, count);
+    else
+        WriteIndexBufferLineLoop(reinterpret_cast<unsigned short*>(mappedMemory), type, indices, count);
 
     if (!mLineLoopIB->unmapBuffer())
     {
@@ -1209,6 +1245,47 @@ void Renderer11::drawLineLoop(GLsizei count, GLenum type, const GLvoid *indices,
     }
 
     mDeviceContext->DrawIndexed(count + 1, 0, -minIndex);
+}
+
+template <typename T>
+void WriteIndexBufferTriangleFan(T *data, GLenum type, const GLvoid *indices, int numTris)
+{
+    switch (type)
+    {
+        case GL_NONE:   // Non-indexed draw
+        for (int i = 0; i < numTris; i++)
+        {
+            data[i*3 + 0] = 0;
+            data[i*3 + 1] = i + 1;
+            data[i*3 + 2] = i + 2;
+        }
+        break;
+        case GL_UNSIGNED_BYTE:
+        for (int i = 0; i < numTris; i++)
+        {
+            data[i*3 + 0] = static_cast<const GLubyte*>(indices)[0];
+            data[i*3 + 1] = static_cast<const GLubyte*>(indices)[i + 1];
+            data[i*3 + 2] = static_cast<const GLubyte*>(indices)[i + 2];
+        }
+        break;
+        case GL_UNSIGNED_SHORT:
+        for (int i = 0; i < numTris; i++)
+        {
+            data[i*3 + 0] = static_cast<const GLushort*>(indices)[0];
+            data[i*3 + 1] = static_cast<const GLushort*>(indices)[i + 1];
+            data[i*3 + 2] = static_cast<const GLushort*>(indices)[i + 2];
+        }
+        break;
+        case GL_UNSIGNED_INT:
+        for (int i = 0; i < numTris; i++)
+        {
+            data[i*3 + 0] = static_cast<const GLuint*>(indices)[0];
+            data[i*3 + 1] = static_cast<const GLuint*>(indices)[i + 1];
+            data[i*3 + 2] = static_cast<const GLuint*>(indices)[i + 2];
+        }
+        break;
+        default: UNREACHABLE();
+    }
 }
 
 void Renderer11::drawTriangleFan(GLsizei count, GLenum type, const GLvoid *indices, int minIndex, gl::Buffer *elementArrayBuffer, int instances)
@@ -1261,45 +1338,12 @@ void Renderer11::drawTriangleFan(GLsizei count, GLenum type, const GLvoid *indic
         return gl::error(GL_OUT_OF_MEMORY);
     }
 
-    unsigned int *data = reinterpret_cast<unsigned int*>(mappedMemory);
     unsigned int indexBufferOffset = offset;
 
-    switch (type)
-    {
-      case GL_NONE:   // Non-indexed draw
-        for (unsigned int i = 0; i < numTris; i++)
-        {
-            data[i*3 + 0] = 0;
-            data[i*3 + 1] = i + 1;
-            data[i*3 + 2] = i + 2;
-        }
-        break;
-      case GL_UNSIGNED_BYTE:
-        for (unsigned int i = 0; i < numTris; i++)
-        {
-            data[i*3 + 0] = static_cast<const GLubyte*>(indices)[0];
-            data[i*3 + 1] = static_cast<const GLubyte*>(indices)[i + 1];
-            data[i*3 + 2] = static_cast<const GLubyte*>(indices)[i + 2];
-        }
-        break;
-      case GL_UNSIGNED_SHORT:
-        for (unsigned int i = 0; i < numTris; i++)
-        {
-            data[i*3 + 0] = static_cast<const GLushort*>(indices)[0];
-            data[i*3 + 1] = static_cast<const GLushort*>(indices)[i + 1];
-            data[i*3 + 2] = static_cast<const GLushort*>(indices)[i + 2];
-        }
-        break;
-      case GL_UNSIGNED_INT:
-        for (unsigned int i = 0; i < numTris; i++)
-        {
-            data[i*3 + 0] = static_cast<const GLuint*>(indices)[0];
-            data[i*3 + 1] = static_cast<const GLuint*>(indices)[i + 1];
-            data[i*3 + 2] = static_cast<const GLuint*>(indices)[i + 2];
-        }
-        break;
-      default: UNREACHABLE();
-    }
+    if (mFeatureLevel > D3D_FEATURE_LEVEL_9_1)
+        WriteIndexBufferTriangleFan(reinterpret_cast<unsigned int*>(mappedMemory), type, indices, numTris);
+    else
+        WriteIndexBufferTriangleFan(reinterpret_cast<unsigned short*>(mappedMemory), type, indices, numTris);
 
     if (!mTriangleFanIB->unmapBuffer())
     {
@@ -1509,7 +1553,7 @@ void Renderer11::applyUniforms(gl::ProgramBinary *programBinary, gl::UniformArra
     }
 
     // needed for the point sprite geometry shader
-    if (mCurrentGeometryConstantBuffer != mDriverConstantBufferPS)
+    if (mCurrentGeometryConstantBuffer != mDriverConstantBufferPS && mFeatureLevel >= D3D_FEATURE_LEVEL_10_0)
     {
         mDeviceContext->GSSetConstantBuffers(0, 1, &mDriverConstantBufferPS);
         mCurrentGeometryConstantBuffer = mDriverConstantBufferPS;
@@ -1661,7 +1705,7 @@ void Renderer11::maskedClear(const gl::ClearParameters &clearParams, bool usingE
         rsScissorDesc.DepthBias = 0;
         rsScissorDesc.DepthBiasClamp = 0.0f;
         rsScissorDesc.SlopeScaledDepthBias = 0.0f;
-        rsScissorDesc.DepthClipEnable = FALSE;
+        rsScissorDesc.DepthClipEnable = (mFeatureLevel <= D3D_FEATURE_LEVEL_9_3) ? TRUE : FALSE;
         rsScissorDesc.ScissorEnable = TRUE;
         rsScissorDesc.MultisampleEnable = FALSE;
         rsScissorDesc.AntialiasedLineEnable = FALSE;
@@ -1677,7 +1721,7 @@ void Renderer11::maskedClear(const gl::ClearParameters &clearParams, bool usingE
         rsNoScissorDesc.DepthBias = 0;
         rsNoScissorDesc.DepthBiasClamp = 0.0f;
         rsNoScissorDesc.SlopeScaledDepthBias = 0.0f;
-        rsNoScissorDesc.DepthClipEnable = FALSE;
+        rsScissorDesc.DepthClipEnable = (mFeatureLevel <= D3D_FEATURE_LEVEL_9_3) ? TRUE : FALSE;
         rsNoScissorDesc.ScissorEnable = FALSE;
         rsNoScissorDesc.MultisampleEnable = FALSE;
         rsNoScissorDesc.AntialiasedLineEnable = FALSE;
@@ -1923,6 +1967,9 @@ bool Renderer11::testDeviceResettable()
 
     D3D_FEATURE_LEVEL featureLevels[] =
     {
+#ifdef D3D_FEATURE_LEVEL_11_1
+        D3D_FEATURE_LEVEL_11_1,
+#endif // 
         D3D_FEATURE_LEVEL_11_0,
         D3D_FEATURE_LEVEL_10_1,
         D3D_FEATURE_LEVEL_10_0,
@@ -2104,11 +2151,20 @@ float Renderer11::getTextureMaxAnisotropy() const
 {
     switch (mFeatureLevel)
     {
+#ifdef D3D_FEATURE_LEVEL_11_1
+      case D3D_FEATURE_LEVEL_11_1:
+#endif // D3D_FEATURE_LEVEL_11_1
       case D3D_FEATURE_LEVEL_11_0:
         return D3D11_MAX_MAXANISOTROPY;
       case D3D_FEATURE_LEVEL_10_1:
       case D3D_FEATURE_LEVEL_10_0:
         return D3D10_MAX_MAXANISOTROPY;
+#if defined(ANGLE_PLATFORM_WINRT)
+      case D3D_FEATURE_LEVEL_9_3:
+      case D3D_FEATURE_LEVEL_9_2:
+      case D3D_FEATURE_LEVEL_9_1:
+        return D3D_FL9_1_DEFAULT_MAX_ANISOTROPY;
+#endif // ANGLE_PLATFORM_WINRT
       default: UNREACHABLE();
         return 0;
     }
@@ -2123,10 +2179,16 @@ Range Renderer11::getViewportBounds() const
 {
     switch (mFeatureLevel)
     {
+#ifdef D3D_FEATURE_LEVEL_11_1
+      case D3D_FEATURE_LEVEL_11_1:
+#endif // D3D_FEATURE_LEVEL_11_1
       case D3D_FEATURE_LEVEL_11_0:
         return Range(D3D11_VIEWPORT_BOUNDS_MIN, D3D11_VIEWPORT_BOUNDS_MAX);
       case D3D_FEATURE_LEVEL_10_1:
       case D3D_FEATURE_LEVEL_10_0:
+      case D3D_FEATURE_LEVEL_9_3:
+      case D3D_FEATURE_LEVEL_9_2:
+      case D3D_FEATURE_LEVEL_9_1:
         return Range(D3D10_VIEWPORT_BOUNDS_MIN, D3D10_VIEWPORT_BOUNDS_MAX);
       default: UNREACHABLE();
         return Range(0, 0);
@@ -2138,9 +2200,15 @@ unsigned int Renderer11::getMaxVertexTextureImageUnits() const
     META_ASSERT(MAX_TEXTURE_IMAGE_UNITS_VTF_SM4 <= gl::IMPLEMENTATION_MAX_VERTEX_TEXTURE_IMAGE_UNITS);
     switch (mFeatureLevel)
     {
+#ifdef D3D_FEATURE_LEVEL_11_1
+      case D3D_FEATURE_LEVEL_11_1:
+#endif // D3D_FEATURE_LEVEL_11_1
       case D3D_FEATURE_LEVEL_11_0:
       case D3D_FEATURE_LEVEL_10_1:
       case D3D_FEATURE_LEVEL_10_0:
+      case D3D_FEATURE_LEVEL_9_3:
+      case D3D_FEATURE_LEVEL_9_2:
+      case D3D_FEATURE_LEVEL_9_1:
         return MAX_TEXTURE_IMAGE_UNITS_VTF_SM4;
       default: UNREACHABLE();
         return 0;
@@ -2165,14 +2233,16 @@ unsigned int Renderer11::getReservedFragmentUniformVectors() const
 unsigned int Renderer11::getMaxVertexUniformVectors() const
 {
     META_ASSERT(MAX_VERTEX_UNIFORM_VECTORS_D3D11 <= D3D10_REQ_CONSTANT_BUFFER_ELEMENT_COUNT);
-    ASSERT(mFeatureLevel >= D3D_FEATURE_LEVEL_10_0);
+    //ASSERT(mFeatureLevel >= D3D_FEATURE_LEVEL_10_0);
+    ASSERT(mFeatureLevel >= D3D_FEATURE_LEVEL_9_1);
     return MAX_VERTEX_UNIFORM_VECTORS_D3D11;
 }
 
 unsigned int Renderer11::getMaxFragmentUniformVectors() const
 {
     META_ASSERT(MAX_FRAGMENT_UNIFORM_VECTORS_D3D11 <= D3D10_REQ_CONSTANT_BUFFER_ELEMENT_COUNT);
-    ASSERT(mFeatureLevel >= D3D_FEATURE_LEVEL_10_0);
+    //ASSERT(mFeatureLevel >= D3D_FEATURE_LEVEL_10_0);
+    ASSERT(mFeatureLevel >= D3D_FEATURE_LEVEL_9_1);
     return MAX_FRAGMENT_UNIFORM_VECTORS_D3D11;
 }
 
@@ -2181,10 +2251,16 @@ unsigned int Renderer11::getMaxVaryingVectors() const
     META_ASSERT(gl::IMPLEMENTATION_MAX_VARYING_VECTORS == D3D11_VS_OUTPUT_REGISTER_COUNT);
     switch (mFeatureLevel)
     {
+#ifdef D3D_FEATURE_LEVEL_11_1
+      case D3D_FEATURE_LEVEL_11_1:
+#endif // D3D_FEATURE_LEVEL_11_1
       case D3D_FEATURE_LEVEL_11_0:
         return D3D11_VS_OUTPUT_REGISTER_COUNT;
       case D3D_FEATURE_LEVEL_10_1:
       case D3D_FEATURE_LEVEL_10_0:
+      case D3D_FEATURE_LEVEL_9_3:
+      case D3D_FEATURE_LEVEL_9_2:
+      case D3D_FEATURE_LEVEL_9_1:
         return D3D10_VS_OUTPUT_REGISTER_COUNT;
       default: UNREACHABLE();
         return 0;
@@ -2195,9 +2271,15 @@ bool Renderer11::getNonPower2TextureSupport() const
 {
     switch (mFeatureLevel)
     {
+#ifdef D3D_FEATURE_LEVEL_11_1
+      case D3D_FEATURE_LEVEL_11_1:
+#endif // D3D_FEATURE_LEVEL_11_1
       case D3D_FEATURE_LEVEL_11_0:
       case D3D_FEATURE_LEVEL_10_1:
       case D3D_FEATURE_LEVEL_10_0:
+      case D3D_FEATURE_LEVEL_9_3:
+      case D3D_FEATURE_LEVEL_9_2:
+      case D3D_FEATURE_LEVEL_9_1:
         return true;
       default: UNREACHABLE();
         return false;
@@ -2208,9 +2290,15 @@ bool Renderer11::getOcclusionQuerySupport() const
 {
     switch (mFeatureLevel)
     {
+#ifdef D3D_FEATURE_LEVEL_11_1
+      case D3D_FEATURE_LEVEL_11_1:
+#endif // D3D_FEATURE_LEVEL_11_1
       case D3D_FEATURE_LEVEL_11_0:
       case D3D_FEATURE_LEVEL_10_1:
       case D3D_FEATURE_LEVEL_10_0:
+      case D3D_FEATURE_LEVEL_9_3:
+      case D3D_FEATURE_LEVEL_9_2:
+      case D3D_FEATURE_LEVEL_9_1:
         return true;
       default: UNREACHABLE();
         return false;
@@ -2221,10 +2309,17 @@ bool Renderer11::getInstancingSupport() const
 {
     switch (mFeatureLevel)
     {
+#ifdef D3D_FEATURE_LEVEL_11_1
+      case D3D_FEATURE_LEVEL_11_1:
+#endif // D3D_FEATURE_LEVEL_11_1
       case D3D_FEATURE_LEVEL_11_0:
       case D3D_FEATURE_LEVEL_10_1:
       case D3D_FEATURE_LEVEL_10_0:
         return true;
+      case D3D_FEATURE_LEVEL_9_3:
+      case D3D_FEATURE_LEVEL_9_2:
+      case D3D_FEATURE_LEVEL_9_1:
+        return false;
       default: UNREACHABLE();
         return false;
     }
@@ -2242,9 +2337,15 @@ bool Renderer11::getDerivativeInstructionSupport() const
 {
     switch (mFeatureLevel)
     {
+#ifdef D3D_FEATURE_LEVEL_11_1
+      case D3D_FEATURE_LEVEL_11_1:
+#endif // D3D_FEATURE_LEVEL_11_1
       case D3D_FEATURE_LEVEL_11_0:
       case D3D_FEATURE_LEVEL_10_1:
       case D3D_FEATURE_LEVEL_10_0:
+      case D3D_FEATURE_LEVEL_9_3:
+      case D3D_FEATURE_LEVEL_9_2:
+      case D3D_FEATURE_LEVEL_9_1:
         return true;
       default: UNREACHABLE();
         return false;
@@ -2261,9 +2362,15 @@ int Renderer11::getMajorShaderModel() const
 {
     switch (mFeatureLevel)
     {
+#ifdef D3D_FEATURE_LEVEL_11_1
+      case D3D_FEATURE_LEVEL_11_1:
+#endif // D3D_FEATURE_LEVEL_11_1
       case D3D_FEATURE_LEVEL_11_0: return D3D11_SHADER_MAJOR_VERSION;   // 5
       case D3D_FEATURE_LEVEL_10_1: return D3D10_1_SHADER_MAJOR_VERSION; // 4
       case D3D_FEATURE_LEVEL_10_0: return D3D10_SHADER_MAJOR_VERSION;   // 4
+      case D3D_FEATURE_LEVEL_9_3:
+      case D3D_FEATURE_LEVEL_9_2:
+      case D3D_FEATURE_LEVEL_9_1:  return 2;
       default: UNREACHABLE();      return 0;
     }
 }
@@ -2272,9 +2379,15 @@ int Renderer11::getMinorShaderModel() const
 {
     switch (mFeatureLevel)
     {
+#ifdef D3D_FEATURE_LEVEL_11_1
+      case D3D_FEATURE_LEVEL_11_1: return 1;
+#endif // D3D_FEATURE_LEVEL_11_1
       case D3D_FEATURE_LEVEL_11_0: return D3D11_SHADER_MINOR_VERSION;   // 0
       case D3D_FEATURE_LEVEL_10_1: return D3D10_1_SHADER_MINOR_VERSION; // 1
       case D3D_FEATURE_LEVEL_10_0: return D3D10_SHADER_MINOR_VERSION;   // 0
+      case D3D_FEATURE_LEVEL_9_3:
+      case D3D_FEATURE_LEVEL_9_2:
+      case D3D_FEATURE_LEVEL_9_1:  return 0;
       default: UNREACHABLE();      return 0;
     }
 }
@@ -2295,11 +2408,19 @@ int Renderer11::getMaxViewportDimension() const
 
     switch (mFeatureLevel)
     {
-      case D3D_FEATURE_LEVEL_11_0: 
+#ifdef D3D_FEATURE_LEVEL_11_1
+      case D3D_FEATURE_LEVEL_11_1:
+#endif // D3D_FEATURE_LEVEL_11_1
+      case D3D_FEATURE_LEVEL_11_0:
         return D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION;   // 16384
       case D3D_FEATURE_LEVEL_10_1:
       case D3D_FEATURE_LEVEL_10_0: 
         return D3D10_REQ_TEXTURE2D_U_OR_V_DIMENSION;   // 8192
+#if defined(ANGLE_PLATFORM_WINRT)
+      case D3D_FEATURE_LEVEL_9_3:
+      case D3D_FEATURE_LEVEL_9_2:
+      case D3D_FEATURE_LEVEL_9_1: return D3D_FL9_1_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+#endif // ANGLE_PLATFORM_WINRT
       default: UNREACHABLE();      
         return 0;
     }
@@ -2309,9 +2430,17 @@ int Renderer11::getMaxTextureWidth() const
 {
     switch (mFeatureLevel)
     {
+#ifdef D3D_FEATURE_LEVEL_11_1
+      case D3D_FEATURE_LEVEL_11_1:
+#endif // D3D_FEATURE_LEVEL_11_1
       case D3D_FEATURE_LEVEL_11_0: return D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION;   // 16384
       case D3D_FEATURE_LEVEL_10_1:
       case D3D_FEATURE_LEVEL_10_0: return D3D10_REQ_TEXTURE2D_U_OR_V_DIMENSION;   // 8192
+      case D3D_FEATURE_LEVEL_9_3:
+#if defined(ANGLE_PLATFORM_WINRT)
+      case D3D_FEATURE_LEVEL_9_2:
+      case D3D_FEATURE_LEVEL_9_1: return D3D_FL9_1_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+#endif
       default: UNREACHABLE();      return 0;
     }
 }
@@ -2320,9 +2449,17 @@ int Renderer11::getMaxTextureHeight() const
 {
     switch (mFeatureLevel)
     {
+#ifdef D3D_FEATURE_LEVEL_11_1
+      case D3D_FEATURE_LEVEL_11_1:
+#endif // D3D_FEATURE_LEVEL_11_1
       case D3D_FEATURE_LEVEL_11_0: return D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION;   // 16384
       case D3D_FEATURE_LEVEL_10_1:
       case D3D_FEATURE_LEVEL_10_0: return D3D10_REQ_TEXTURE2D_U_OR_V_DIMENSION;   // 8192
+#if defined(ANGLE_PLATFORM_WINRT)
+      case D3D_FEATURE_LEVEL_9_3:
+      case D3D_FEATURE_LEVEL_9_2:
+      case D3D_FEATURE_LEVEL_9_1: return D3D_FL9_1_REQ_TEXTURE2D_U_OR_V_DIMENSION;
+#endif // ANGLE_PLATFORM_WINRT
       default: UNREACHABLE();      return 0;
     }
 }
@@ -2331,9 +2468,15 @@ bool Renderer11::get32BitIndexSupport() const
 {
     switch (mFeatureLevel)
     {
+#ifdef D3D_FEATURE_LEVEL_11_1
+      case D3D_FEATURE_LEVEL_11_1:
+#endif // D3D_FEATURE_LEVEL_11_1
       case D3D_FEATURE_LEVEL_11_0: 
       case D3D_FEATURE_LEVEL_10_1:
       case D3D_FEATURE_LEVEL_10_0: return D3D10_REQ_DRAWINDEXED_INDEX_COUNT_2_TO_EXP >= 32;   // true
+      case D3D_FEATURE_LEVEL_9_3:
+      case D3D_FEATURE_LEVEL_9_2:
+      case D3D_FEATURE_LEVEL_9_1: return false; //DX9 does support 32 bit indices, but the Surface RT doesn't
       default: UNREACHABLE();      return false;
     }
 }
@@ -2383,11 +2526,21 @@ unsigned int Renderer11::getMaxRenderTargets() const
 
     switch (mFeatureLevel)
     {
+#ifdef D3D_FEATURE_LEVEL_11_1
+      case D3D_FEATURE_LEVEL_11_1:
+#endif // D3D_FEATURE_LEVEL_11_1
       case D3D_FEATURE_LEVEL_11_0:
         return D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT;  // 8
       case D3D_FEATURE_LEVEL_10_1:
       case D3D_FEATURE_LEVEL_10_0:
         return D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT;  // 8
+#if defined(ANGLE_PLATFORM_WINRT)
+      case D3D_FEATURE_LEVEL_9_3:
+        return D3D_FL9_3_SIMULTANEOUS_RENDER_TARGET_COUNT;
+      case D3D_FEATURE_LEVEL_9_2:
+      case D3D_FEATURE_LEVEL_9_1:
+        return D3D_FL9_1_SIMULTANEOUS_RENDER_TARGET_COUNT;
+#endif // ANGLE_PLATFORM_WINRT
       default:
         UNREACHABLE();
         return 1;
@@ -2570,7 +2723,10 @@ bool Renderer11::copyTexture(ID3D11ShaderResourceView *source, const gl::Rectang
         samplerDesc.BorderColor[2] = 0.0f;
         samplerDesc.BorderColor[3] = 0.0f;
         samplerDesc.MinLOD = 0.0f;
-        samplerDesc.MaxLOD = 0.0f;
+        if (mDevice->GetFeatureLevel() <= D3D_FEATURE_LEVEL_9_3)
+            samplerDesc.MaxLOD = FLT_MAX; //breaks Surface RT if 0.0f
+        else
+            samplerDesc.MaxLOD = 0.0f; //breaks Surface RT if 0.0f
 
         result = mDevice->CreateSamplerState(&samplerDesc, &mCopySampler);
         ASSERT(SUCCEEDED(result));
@@ -2662,7 +2818,7 @@ bool Renderer11::copyTexture(ID3D11ShaderResourceView *source, const gl::Rectang
     mDeviceContext->VSSetShader(mCopyVS, NULL, 0);
 
     ID3D11PixelShader *ps = NULL;
-    switch(destFormat)
+    switch (destFormat)
     {
       case GL_RGBA:            ps = mCopyRGBAPS;     break;
       case GL_RGB:             ps = mCopyRGBPS;      break;
@@ -2820,10 +2976,48 @@ ShaderExecutable *Renderer11::compileToExecutable(gl::InfoLog &infoLog, const ch
     switch (type)
     {
       case rx::SHADER_VERTEX:
-        profile = "vs_4_0";
+        if (mFeatureLevel >= D3D_FEATURE_LEVEL_10_0)
+            profile = "vs_4_0";
+        else
+        {
+            switch(mFeatureLevel)
+            {
+              case D3D_FEATURE_LEVEL_9_3:
+                profile = "vs_4_0_level_9_3";
+                break;
+
+              case D3D_FEATURE_LEVEL_9_2:
+              case D3D_FEATURE_LEVEL_9_1:
+                profile = "vs_4_0_level_9_1";
+                break;
+
+              default:
+                UNREACHABLE();
+                return NULL;
+            }
+        }
         break;
       case rx::SHADER_PIXEL:
-        profile = "ps_4_0";
+        if (mFeatureLevel >= D3D_FEATURE_LEVEL_10_0)
+            profile = "ps_4_0";
+        else
+        {
+            switch(mFeatureLevel)
+            {
+              case D3D_FEATURE_LEVEL_9_3:
+                profile = "ps_4_0_level_9_3";
+                break;
+
+              case D3D_FEATURE_LEVEL_9_2:
+              case D3D_FEATURE_LEVEL_9_1:
+                profile = "ps_4_0_level_9_1";
+                break;
+
+              default:
+                UNREACHABLE();
+                return NULL;
+            }
+        }
         break;
       case rx::SHADER_GEOMETRY:
         profile = "gs_4_0";

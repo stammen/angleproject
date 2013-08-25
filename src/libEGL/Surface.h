@@ -34,7 +34,7 @@ class Config;
 class Surface
 {
   public:
-    Surface(Display *display, const egl::Config *config, HWND window, EGLint postSubBufferSupported);
+    Surface(Display *display, const egl::Config *config, EGLNativeWindowType window, EGLint postSubBufferSupported);
     Surface(Display *display, const egl::Config *config, HANDLE shareHandle, EGLint width, EGLint height, EGLenum textureFormat, EGLenum textureTarget);
 
     ~Surface();
@@ -43,7 +43,12 @@ class Surface
     void release();
     bool resetSwapChain();
 
+#if defined(ANGLE_PLATFORM_WINRT)
+    Windows::UI::Core::CoreWindow ^getWindowHandle();
+    float convertDipsToPixels(float dips); 
+#else
     HWND getWindowHandle();
+#endif // ANGLE_PLATFORM_WINRT
     bool swap();
     bool postSubBuffer(EGLint x, EGLint y, EGLint width, EGLint height);
 
@@ -79,7 +84,11 @@ private:
     bool resetSwapChain(int backbufferWidth, int backbufferHeight);
     bool swapRect(EGLint x, EGLint y, EGLint width, EGLint height);
 
-    const HWND mWindow;            // Window that the surface is created for.
+#if defined(ANGLE_PLATFORM_WINRT)
+    void onWindowSizeChanged();
+#endif // ANGLE_PLATFORM_WINRT
+    EGLNativeWindowType mWindow;
+
     bool mWindowSubclassed;        // Indicates whether we successfully subclassed mWindow for WM_RESIZE hooking
     const egl::Config *mConfig;    // EGL config surface was created with
     EGLint mHeight;                // Height of surface

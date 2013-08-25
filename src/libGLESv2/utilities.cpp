@@ -737,6 +737,12 @@ bool IsTriangleMode(GLenum drawMode)
 
 std::string getTempPath()
 {
+#if defined(ANGLE_PLATFORM_WINRT)
+    //since windows store apps are sandboxed the temp path will be the same directory as the app for now
+    Windows::ApplicationModel::Package^ package = Windows::ApplicationModel::Package::Current;
+    std::wstring t = std::wstring(package->InstalledLocation->Path->Data());
+    return std::string(t.begin(),t.end());
+#else
     char path[MAX_PATH];
     DWORD pathLen = GetTempPathA(sizeof(path) / sizeof(path[0]), path);
     if (pathLen == 0)
@@ -753,6 +759,7 @@ std::string getTempPath()
     }
     
     return path;
+#endif // ANGLE_PLATFORM_WINRT
 }
 
 void writeFile(const char* path, const void* content, size_t size)

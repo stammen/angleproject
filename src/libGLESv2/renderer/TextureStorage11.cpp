@@ -64,11 +64,14 @@ DWORD TextureStorage11::GetTextureBindFlags(DXGI_FORMAT format, GLenum glusage, 
 
 bool TextureStorage11::IsTextureFormatRenderable(DXGI_FORMAT format)
 {
-    switch(format)
+    switch (format)
     {
       case DXGI_FORMAT_R8G8B8A8_UNORM:
       case DXGI_FORMAT_A8_UNORM:
       case DXGI_FORMAT_R32G32B32A32_FLOAT:
+#if defined(ANGLE_PLATFORM_WINRT)
+      case DXGI_FORMAT_R32G32B32_FLOAT:
+#endif // ANGLE_PLATFORM_WINRT
       case DXGI_FORMAT_R16G16B16A16_FLOAT:
       case DXGI_FORMAT_B8G8R8A8_UNORM:
       case DXGI_FORMAT_R8_UNORM:
@@ -79,7 +82,9 @@ bool TextureStorage11::IsTextureFormatRenderable(DXGI_FORMAT format)
       case DXGI_FORMAT_BC1_UNORM:
       case DXGI_FORMAT_BC2_UNORM: 
       case DXGI_FORMAT_BC3_UNORM:
-      case DXGI_FORMAT_R32G32B32_FLOAT: // not renderable on all devices
+#if !defined(ANGLE_PLATFORM_WINRT)
+      case DXGI_FORMAT_R32G32B32_FLOAT:
+#endif // ANGLE_PLATFORM_WINRT
         return false;
       default:
         UNREACHABLE();
@@ -154,6 +159,22 @@ bool TextureStorage11::updateSubresourceLevel(ID3D11Texture2D *srcTexture, unsig
         ID3D11DeviceContext *context = mRenderer->getDeviceContext();
         
         ASSERT(getBaseTexture());
+#if defined(ANLGE_PLATFORM_WINRT)
+        if (!mipped)
+        {
+            D3D11_TEXTURE2D_DESC texDesc;
+            mTexture->GetDesc(&texDesc);
+            mTexture->Release();
+            texDesc.MipLevels = 1;
+            HRESULT result = mRenderer->getDevice()->CreateTexture2D(&texDesc, NULL, &mTexture);
+            ASSERT(SUCCEEDED(result));
+            if (mSRV)
+            {
+                mSRV->Release();
+                mSRV = NULL;
+            }
+        }
+#endif
         context->CopySubresourceRegion(getBaseTexture(), getSubresourceIndex(level + mLodOffset, face),
                                        xoffset, yoffset, 0, srcTexture, sourceSubresource, &srcBox);
         return true;
@@ -230,6 +251,8 @@ TextureStorage11_2D::TextureStorage11_2D(Renderer *renderer, int levels, GLenum 
     }
 
     DXGI_FORMAT convertedFormat = gl_d3d11::ConvertTextureFormat(internalformat);
+    if (mRenderer->getFeatureLevel() < D3D_FEATURE_LEVEL_9_2 && convertedFormat == DXGI_FORMAT_A8_UNORM)
+        convertedFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
     if (d3d11::IsDepthStencilFormat(convertedFormat))
     {
         mTextureFormat = d3d11::GetDepthTextureFormat(convertedFormat);
@@ -257,7 +280,10 @@ TextureStorage11_2D::TextureStorage11_2D(Renderer *renderer, int levels, GLenum 
         D3D11_TEXTURE2D_DESC desc;
         desc.Width = width;      // Compressed texture size constraints?
         desc.Height = height;
-        desc.MipLevels = (levels > 0) ? levels + mLodOffset : 0;
+        if (mRenderer->getMajorShaderModel() <= 2 && (!gl::isPow2(width) || !gl::isPow2(height)))
+            desc.MipLevels = 1;
+        else
+            desc.MipLevels = (levels > 0) ? levels + mLodOffset : 0;
         desc.ArraySize = 1;
         desc.Format = mTextureFormat;
         desc.SampleDesc.Count = 1;
@@ -331,7 +357,7 @@ RenderTarget *TextureStorage11_2D::getRenderTarget(int level)
             srvDesc.Format = mShaderResourceFormat;
             srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
             srvDesc.Texture2D.MostDetailedMip = level;
-            srvDesc.Texture2D.MipLevels = 1;
+            srvDesc.Texture2D.MipLevels = (mRenderer->getMajorShaderModel() < 4) ? -1 : 1;
 
             ID3D11ShaderResourceView *srv;
             result = device->CreateShaderResourceView(mTexture, &srvDesc, &srv);
@@ -416,7 +442,7 @@ ID3D11ShaderResourceView *TextureStorage11_2D::getSRV()
         D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
         srvDesc.Format = mShaderResourceFormat;
         srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-        srvDesc.Texture2D.MipLevels = (mMipLevels == 0 ? -1 : mMipLevels);
+        srvDesc.Texture2D.MipLevels = -1;//(mMipLevels == 0 ? -1 : mMipLevels); //mMipLevels is pretty much useless since it's always set to the max mips
         srvDesc.Texture2D.MostDetailedMip = 0;
 
         HRESULT result = device->CreateShaderResourceView(mTexture, &srvDesc, &mSRV);
