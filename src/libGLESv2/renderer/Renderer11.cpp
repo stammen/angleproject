@@ -1278,7 +1278,7 @@ void WriteIndexBufferTriangleFan(T *data, GLenum type, const GLvoid *indices, in
     switch (type)
     {
       case GL_NONE:   // Non-indexed draw
-        for (unsigned int i = 0; i < numTris; i++)
+        for (int i = 0; i < numTris; i++)
         {
             data[i*3 + 0] = 0;
             data[i*3 + 1] = i + 1;
@@ -1286,7 +1286,7 @@ void WriteIndexBufferTriangleFan(T *data, GLenum type, const GLvoid *indices, in
         }
         break;
       case GL_UNSIGNED_BYTE:
-        for (unsigned int i = 0; i < numTris; i++)
+        for (int i = 0; i < numTris; i++)
         {
             data[i*3 + 0] = static_cast<const GLubyte*>(indices)[0];
             data[i*3 + 1] = static_cast<const GLubyte*>(indices)[i + 1];
@@ -1294,7 +1294,7 @@ void WriteIndexBufferTriangleFan(T *data, GLenum type, const GLvoid *indices, in
         }
         break;
       case GL_UNSIGNED_SHORT:
-        for (unsigned int i = 0; i < numTris; i++)
+        for (int i = 0; i < numTris; i++)
         {
             data[i*3 + 0] = static_cast<const GLushort*>(indices)[0];
             data[i*3 + 1] = static_cast<const GLushort*>(indices)[i + 1];
@@ -1302,7 +1302,7 @@ void WriteIndexBufferTriangleFan(T *data, GLenum type, const GLvoid *indices, in
         }
         break;
       case GL_UNSIGNED_INT:
-        for (unsigned int i = 0; i < numTris; i++)
+        for (int i = 0; i < numTris; i++)
         {
             data[i*3 + 0] = static_cast<const GLuint*>(indices)[0];
             data[i*3 + 1] = static_cast<const GLuint*>(indices)[i + 1];
