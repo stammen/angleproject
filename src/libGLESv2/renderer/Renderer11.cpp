@@ -12,7 +12,7 @@
 #include "libGLESv2/Buffer.h"
 #include "libGLESv2/ProgramBinary.h"
 #include "libGLESv2/Framebuffer.h"
-#include "libGLESv2/RenderBuffer.h"
+#include "libGLESv2/Renderbuffer.h"
 #include "libGLESv2/renderer/Renderer11.h"
 #include "libGLESv2/renderer/RenderTarget11.h"
 #include "libGLESv2/renderer/renderer11_utils.h"
@@ -375,7 +375,6 @@ EGLint Renderer11::initialize()
     {
         DXGI_FORMAT_R32_FLOAT,
         DXGI_FORMAT_R32G32_FLOAT,
-        DXGI_FORMAT_R32G32B32_FLOAT,
         DXGI_FORMAT_R32G32B32A32_FLOAT,
     };
 
@@ -1278,39 +1277,39 @@ void WriteIndexBufferTriangleFan(T *data, GLenum type, const GLvoid *indices, in
 {
     switch (type)
     {
-        case GL_NONE:   // Non-indexed draw
-        for (int i = 0; i < numTris; i++)
+      case GL_NONE:   // Non-indexed draw
+        for (unsigned int i = 0; i < numTris; i++)
         {
             data[i*3 + 0] = 0;
             data[i*3 + 1] = i + 1;
             data[i*3 + 2] = i + 2;
         }
         break;
-        case GL_UNSIGNED_BYTE:
-        for (int i = 0; i < numTris; i++)
+      case GL_UNSIGNED_BYTE:
+        for (unsigned int i = 0; i < numTris; i++)
         {
             data[i*3 + 0] = static_cast<const GLubyte*>(indices)[0];
             data[i*3 + 1] = static_cast<const GLubyte*>(indices)[i + 1];
             data[i*3 + 2] = static_cast<const GLubyte*>(indices)[i + 2];
         }
         break;
-        case GL_UNSIGNED_SHORT:
-        for (int i = 0; i < numTris; i++)
+      case GL_UNSIGNED_SHORT:
+        for (unsigned int i = 0; i < numTris; i++)
         {
             data[i*3 + 0] = static_cast<const GLushort*>(indices)[0];
             data[i*3 + 1] = static_cast<const GLushort*>(indices)[i + 1];
             data[i*3 + 2] = static_cast<const GLushort*>(indices)[i + 2];
         }
         break;
-        case GL_UNSIGNED_INT:
-        for (int i = 0; i < numTris; i++)
+      case GL_UNSIGNED_INT:
+        for (unsigned int i = 0; i < numTris; i++)
         {
             data[i*3 + 0] = static_cast<const GLuint*>(indices)[0];
             data[i*3 + 1] = static_cast<const GLuint*>(indices)[i + 1];
             data[i*3 + 2] = static_cast<const GLuint*>(indices)[i + 2];
         }
         break;
-        default: UNREACHABLE();
+      default: UNREACHABLE();
     }
 }
 

@@ -50,8 +50,8 @@
 #endif // #if !defined(ANGLE_PLATFORM_WP8)
 #else
 #include <d3d9.h>
-#include <D3D11.h>
-#include <D3Dcompiler.h>
+#include <d3d11.h>
+#include <d3dcompiler.h>
 #endif // #if defined(WINAPI_FAMILY)
 
 #include <dxgi.h>

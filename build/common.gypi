@@ -59,6 +59,7 @@
             'MinimalRebuild': 'false',
             'PreprocessorDefinitions': [
               '_CRT_SECURE_NO_DEPRECATE',
+              '_SCL_SECURE_NO_DEPRECATE',
               '_HAS_EXCEPTIONS=0',
               '_WIN32_WINNT=0x0600',
               '_WINDOWS',
@@ -81,6 +82,21 @@
             'SubSystem': '1',  # /SUBSYSTEM:CONSOLE
             'AdditionalLibraryDirectories': [
               '$(ProgramFiles)/Windows Kits/8.0/Lib/win8/um/x86',
+            ],
+            'AdditionalDependencies': [
+              'kernel32.lib',
+              'gdi32.lib',
+              'winspool.lib',
+              'comdlg32.lib',
+              'advapi32.lib',
+              'shell32.lib',
+              'ole32.lib',
+              'oleaut32.lib',
+              'user32.lib',
+              'uuid.lib',
+              'odbc32.lib',
+              'odbccp32.lib',
+              'delayimp.lib',
             ],
           },
           'VCLibrarianTool': {

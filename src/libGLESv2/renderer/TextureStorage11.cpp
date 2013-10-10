@@ -70,7 +70,6 @@ bool TextureStorage11::IsTextureFormatRenderable(DXGI_FORMAT format)
       case DXGI_FORMAT_A8_UNORM:
       case DXGI_FORMAT_R32G32B32A32_FLOAT:
 #if defined(ANGLE_PLATFORM_WINRT)
-      case DXGI_FORMAT_R32G32B32_FLOAT:
 #endif //#if defined(ANGLE_PLATFORM_WINRT)
       case DXGI_FORMAT_R16G16B16A16_FLOAT:
       case DXGI_FORMAT_B8G8R8A8_UNORM:
@@ -575,7 +574,7 @@ RenderTarget *TextureStorage11_Cube::getRenderTarget(GLenum faceTarget, int leve
 
             D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
             srvDesc.Format = mShaderResourceFormat;
-            srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
+            srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2DARRAY; // Will be used with Texture2D sampler, not TextureCube
             srvDesc.Texture2DArray.MostDetailedMip = level;
             srvDesc.Texture2DArray.MipLevels = 1;
             srvDesc.Texture2DArray.FirstArraySlice = faceIdx;
