@@ -281,7 +281,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\common\event_tracer.cpp" />
+    <ClCompile Include="..\common\event_tracer.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="..\common\winrtutils.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">NotUsing</PrecompiledHeader>
@@ -465,11 +472,8 @@
     <ProjectReference Include="..\compiler\preprocessor\preprocessor_winrt.vcxproj">
       <Project>{e7b1d854-ad49-4662-8326-24579123f471}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\compiler\translator_common_winrt.vcxproj">
-      <Project>{3681e22c-f004-4048-a867-8dedd85ec601}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\compiler\translator_hlsl_winrt.vcxproj">
-      <Project>{f7cc3484-9bcf-4063-b842-02c0c621fc1b}</Project>
+    <ProjectReference Include="..\compiler\translator_winrt.vcxproj">
+      <Project>{8a2da633-1149-47c3-9cac-5125271d4ba6}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
