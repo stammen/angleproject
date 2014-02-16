@@ -1,3 +1,6 @@
+
+Please note that WinRT and WP8 Angle development and support has moved to: https://github.com/MSOpenTech/angle
+
 Angle
 =====
 
