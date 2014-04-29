@@ -161,7 +161,7 @@ DXGI_FORMAT Image11::getDXGIFormat() const
     // this should only happen if the image hasn't been redefined first
     // which would be a bug by the caller
     ASSERT(mDXGIFormat != DXGI_FORMAT_UNKNOWN);
-    if (mRenderer->getFeatureLevel() < D3D_FEATURE_LEVEL_9_2 && mDXGIFormat == DXGI_FORMAT_A8_UNORM)
+    if (mRenderer->getFeatureLevel() <= D3D_FEATURE_LEVEL_9_3 && mDXGIFormat == DXGI_FORMAT_A8_UNORM)
     {
         return DXGI_FORMAT_B8G8R8A8_UNORM;
     }
@@ -177,7 +177,15 @@ void Image11::loadData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei heig
                        GLint unpackAlignment, const void *input)
 {
     D3D11_MAPPED_SUBRESOURCE mappedImage;
-    HRESULT result = map(D3D11_MAP_WRITE, &mappedImage);
+
+    ID3D11DeviceContext *dxContext = mRenderer->getDeviceContext();
+    D3D11_MAP mapType = D3D11_MAP_WRITE;
+    if (dxContext->GetType() == D3D11_DEVICE_CONTEXT_DEFERRED)
+    {
+        mapType = D3D11_MAP_WRITE_DISCARD;
+    }
+
+    HRESULT result = map(mapType, &mappedImage);
     if (FAILED(result))
     {
         ERR("Could not map image for loading.");
@@ -191,7 +199,7 @@ void Image11::loadData(GLint xoffset, GLint yoffset, GLsizei width, GLsizei heig
     switch (mInternalFormat)
     {
       case GL_ALPHA8_EXT:
-        if (mRenderer->getFeatureLevel() < D3D_FEATURE_LEVEL_9_2)
+        if (mRenderer->getFeatureLevel() <= D3D_FEATURE_LEVEL_9_3)
             loadAlphaDataToBGRA(width, height, inputPitch, input, mappedImage.RowPitch, offsetMappedData);
         else
             loadAlphaDataToNative(width, height, inputPitch, input, mappedImage.RowPitch, offsetMappedData);
@@ -263,7 +271,14 @@ void Image11::loadCompressedData(GLint xoffset, GLint yoffset, GLsizei width, GL
     ASSERT(yoffset % 4 == 0);
 
     D3D11_MAPPED_SUBRESOURCE mappedImage;
-    HRESULT result = map(D3D11_MAP_WRITE, &mappedImage);
+    ID3D11DeviceContext *dxContext = mRenderer->getDeviceContext();
+    D3D11_MAP mapType = D3D11_MAP_WRITE;
+    if (dxContext->GetType() == D3D11_DEVICE_CONTEXT_DEFERRED)
+    {
+        mapType = D3D11_MAP_WRITE_DISCARD;
+    }
+
+    HRESULT result = map(mapType, &mappedImage);
     if (FAILED(result))
     {
         ERR("Could not map image for loading.");
@@ -353,7 +368,14 @@ void Image11::copy(GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width
     {
         // This format requires conversion, so we must copy the texture to staging and manually convert via readPixels
         D3D11_MAPPED_SUBRESOURCE mappedImage;
-        HRESULT result = map(D3D11_MAP_WRITE, &mappedImage);
+        ID3D11DeviceContext *dxContext = mRenderer->getDeviceContext();
+        D3D11_MAP mapType = D3D11_MAP_WRITE;
+        if (dxContext->GetType() == D3D11_DEVICE_CONTEXT_DEFERRED)
+        {
+            mapType = D3D11_MAP_WRITE_DISCARD;
+        }
+
+        HRESULT result = map(mapType, &mappedImage);
 
         // determine the offset coordinate into the destination buffer
         GLsizei rowOffset = gl::ComputePixelSize(mActualFormat) * xoffset;
@@ -393,7 +415,7 @@ void Image11::createStagingTexture()
     DXGI_FORMAT dxgiFormat = getDXGIFormat();
     ASSERT(!d3d11::IsDepthStencilFormat(dxgiFormat)); // We should never get here for depth textures
 
-    if (mRenderer->getFeatureLevel() < D3D_FEATURE_LEVEL_9_2 && dxgiFormat == DXGI_FORMAT_A8_UNORM)
+    if (mRenderer->getFeatureLevel() <= D3D_FEATURE_LEVEL_9_3 && dxgiFormat == DXGI_FORMAT_A8_UNORM)
         dxgiFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
 
     if (mWidth != 0 && mHeight != 0)

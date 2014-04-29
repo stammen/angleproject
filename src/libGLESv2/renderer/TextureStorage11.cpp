@@ -159,7 +159,7 @@ bool TextureStorage11::updateSubresourceLevel(ID3D11Texture2D *srcTexture, unsig
         ID3D11DeviceContext *context = mRenderer->getDeviceContext();
         
         ASSERT(getBaseTexture());
-#if defined(ANGLE_PLATFORM_WINRT)
+#if defined(ANGLE_PLATFORM_WINRT) || defined(ANGLE_PLATFORM_WP8)
         if (!mipped)
         {
             D3D11_TEXTURE2D_DESC texDesc;
@@ -251,8 +251,11 @@ TextureStorage11_2D::TextureStorage11_2D(Renderer *renderer, int levels, GLenum 
     }
 
     DXGI_FORMAT convertedFormat = gl_d3d11::ConvertTextureFormat(internalformat);
-    if (mRenderer->getFeatureLevel() < D3D_FEATURE_LEVEL_9_2 && convertedFormat == DXGI_FORMAT_A8_UNORM)
+    if (mRenderer->getFeatureLevel() <= D3D_FEATURE_LEVEL_9_3 && convertedFormat == DXGI_FORMAT_A8_UNORM)
+    {
         convertedFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
+    }
+
     if (d3d11::IsDepthStencilFormat(convertedFormat))
     {
         mTextureFormat = d3d11::GetDepthTextureFormat(convertedFormat);
@@ -284,6 +287,7 @@ TextureStorage11_2D::TextureStorage11_2D(Renderer *renderer, int levels, GLenum 
             desc.MipLevels = 1;
         else
             desc.MipLevels = (levels > 0) ? levels + mLodOffset : 0;
+
         desc.ArraySize = 1;
         desc.Format = mTextureFormat;
         desc.SampleDesc.Count = 1;

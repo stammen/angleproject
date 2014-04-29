@@ -101,7 +101,7 @@
     <TargetName>libEGL</TargetName>
     <OutDir>$(SolutionDir)WinRT\redist\vs2013\$(Platform)\$(Configuration)\$(MSBuildProjectName)\</OutDir>
     <LinkIncremental>false</LinkIncremental>
-    <IntDir>WinRT\vs2013\$(Platform)\$(Configuration)\</IntDir>
+    <IntDir>WinRT\vs2013\$(Platform)\$(Configuration)\$(MSBuildProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <GenerateManifest>false</GenerateManifest>
@@ -109,7 +109,7 @@
     <TargetName>libEGL</TargetName>
     <OutDir>$(SolutionDir)WinRT\redist\vs2013\$(Platform)\$(Configuration)\$(MSBuildProjectName)\</OutDir>
     <LinkIncremental>false</LinkIncremental>
-    <IntDir>WinRT\vs2013\$(Platform)\$(Configuration)\</IntDir>
+    <IntDir>WinRT\vs2013\$(Platform)\$(Configuration)\$(MSBuildProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <GenerateManifest>false</GenerateManifest>
@@ -117,7 +117,7 @@
     <TargetName>libEGL</TargetName>
     <OutDir>$(SolutionDir)WinRT\redist\vs2013\$(Platform)\$(Configuration)\$(MSBuildProjectName)\</OutDir>
     <LinkIncremental>false</LinkIncremental>
-    <IntDir>WinRT\vs2013\$(Platform)\$(Configuration)\</IntDir>
+    <IntDir>WinRT\vs2013\$(Platform)\$(Configuration)\$(MSBuildProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
     <GenerateManifest>false</GenerateManifest>
@@ -125,7 +125,7 @@
     <TargetName>libEGL</TargetName>
     <OutDir>$(SolutionDir)WinRT\redist\vs2013\$(Platform)\$(Configuration)\$(MSBuildProjectName)\</OutDir>
     <LinkIncremental>false</LinkIncremental>
-    <IntDir>WinRT\vs2013\$(Platform)\$(Configuration)\</IntDir>
+    <IntDir>WinRT\vs2013\$(Platform)\$(Configuration)\$(MSBuildProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <GenerateManifest>false</GenerateManifest>
@@ -133,7 +133,7 @@
     <TargetName>libEGL</TargetName>
     <OutDir>$(SolutionDir)WinRT\redist\vs2013\$(Platform)\$(Configuration)\$(MSBuildProjectName)\</OutDir>
     <LinkIncremental>false</LinkIncremental>
-    <IntDir>WinRT\vs2013\$(Platform)\$(Configuration)\</IntDir>
+    <IntDir>WinRT\vs2013\$(Platform)\$(Configuration)\$(MSBuildProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <GenerateManifest>false</GenerateManifest>
@@ -141,7 +141,7 @@
     <TargetName>libEGL</TargetName>
     <OutDir>$(SolutionDir)WinRT\redist\vs2013\$(Platform)\$(Configuration)\$(MSBuildProjectName)\</OutDir>
     <LinkIncremental>false</LinkIncremental>
-    <IntDir>WinRT\vs2013\$(Platform)\$(Configuration)\</IntDir>
+    <IntDir>WinRT\vs2013\$(Platform)\$(Configuration)\$(MSBuildProjectName)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -174,6 +174,7 @@
       <PreprocessorDefinitions>_WINDLL;_WINDOWS;_USRDLL;LIBEGL_EXPORTS;_CRT_SECURE_NO_DEPRECATE;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4100;4127;4189;4239;4244;4245;4451;4512;4702;4973;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <WholeProgramOptimization>true</WholeProgramOptimization>
+      <DebugInformationFormat>None</DebugInformationFormat>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -182,6 +183,7 @@
       <ModuleDefinitionFile>libEGL_winrt.def</ModuleDefinitionFile>
       <AdditionalOptions>/IGNORE:4264 %(AdditionalOptions)</AdditionalOptions>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|arm'">
@@ -214,6 +216,7 @@
       <PreprocessorDefinitions>_WINDLL;_WINDOWS;_USRDLL;LIBEGL_EXPORTS;_CRT_SECURE_NO_DEPRECATE;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4100;4127;4189;4239;4244;4245;4451;4512;4702;4973;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <WholeProgramOptimization>true</WholeProgramOptimization>
+      <DebugInformationFormat>None</DebugInformationFormat>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -222,6 +225,7 @@
       <ModuleDefinitionFile>libEGL_winrt.def</ModuleDefinitionFile>
       <AdditionalOptions>/IGNORE:4264 %(AdditionalOptions)</AdditionalOptions>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -254,6 +258,7 @@
       <PreprocessorDefinitions>_WINDLL;_WINDOWS;_USRDLL;LIBEGL_EXPORTS;_CRT_SECURE_NO_DEPRECATE;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4100;4127;4189;4239;4244;4245;4451;4512;4702;4973;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <WholeProgramOptimization>true</WholeProgramOptimization>
+      <DebugInformationFormat>None</DebugInformationFormat>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -262,6 +267,7 @@
       <ModuleDefinitionFile>libEGL_winrt.def</ModuleDefinitionFile>
       <AdditionalOptions>/IGNORE:4264 %(AdditionalOptions)</AdditionalOptions>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -279,8 +285,6 @@
     <ClInclude Include="..\common\winrtangleutils.h" />
     <ClInclude Include="..\common\winrtplatform.h" />
     <ClInclude Include="..\common\winrtutils.h" />
-    <ClInclude Include="..\common\winrt\ThreadEmulation.h" />
-    <ClInclude Include="..\common\winrt\threadutils.h" />
     <ClInclude Include="Config.h" />
     <ClInclude Include="Display.h" />
     <ClInclude Include="..\..\include\EGL\egl.h" />
