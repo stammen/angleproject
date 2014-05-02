@@ -113,7 +113,12 @@ void Asteroids::SetWindow(CoreWindow^ window)
 
     // we need to select the correct DirectX feature level depending on the platform
     // default is D3D_FEATURE_LEVEL_9_3 Windows Phone 8.0
+
+#if (_MSC_VER >= 1800)
     ANGLE_D3D_FEATURE_LEVEL featureLevel = ANGLE_D3D_FEATURE_LEVEL::ANGLE_D3D_FEATURE_LEVEL_ANY;
+#else
+    ANGLE_D3D_FEATURE_LEVEL featureLevel = ANGLE_D3D_FEATURE_LEVEL::ANGLE_D3D_FEATURE_LEVEL_9_1;
+#endif
 
     CreateWinrtEglWindow(WINRT_EGL_IUNKNOWN(CoreWindow::GetForCurrentThread()), featureLevel, m_eglWindow.GetAddressOf());
 
