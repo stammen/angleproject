@@ -8,6 +8,7 @@
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtx/transform.hpp"
+#include "winrtangle.h"
 
 class FBOIncompleteException : public std::exception
 {
@@ -156,6 +157,9 @@ private:
 	Windows::Graphics::Display::DisplayOrientations m_orientation;
 	bool m_windowClosed;
 	bool m_windowVisible;
+
+    Microsoft::WRL::ComPtr<IWinrtEglWindow> m_eglWindow;
+
 };
 
 ref class Direct3DApplicationSource sealed : Windows::ApplicationModel::Core::IFrameworkViewSource

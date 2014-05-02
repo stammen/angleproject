@@ -110,7 +110,14 @@ void Asteroids::SetWindow(CoreWindow^ window)
     m_windowBounds = window->Bounds;
 
     esInitContext ( &m_esContext );
-    m_esContext.hWnd.window = CoreWindow::GetForCurrentThread();
+
+    // we need to select the correct DirectX feature level depending on the platform
+    // default is D3D_FEATURE_LEVEL_9_3 Windows Phone 8.0
+    ANGLE_D3D_FEATURE_LEVEL featureLevel = ANGLE_D3D_FEATURE_LEVEL::ANGLE_D3D_FEATURE_LEVEL_ANY;
+
+    CreateWinrtEglWindow(WINRT_EGL_IUNKNOWN(CoreWindow::GetForCurrentThread()), featureLevel, m_eglWindow.GetAddressOf());
+
+    m_esContext.hWnd = WINRT_EGL_IUNKNOWN(m_eglWindow.Get());
     esCreateWindow ( &m_esContext, TEXT("Simple Instancing"), 320, 240, ES_WINDOW_RGB );
 
     const char *vs = STRINGIFY(
